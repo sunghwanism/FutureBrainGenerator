@@ -20,11 +20,11 @@ def parse_options():
     '''
     parser = argparse.ArgumentParser(description='PyTorch Example')
     # General options
-    parser.add_argument('--dataf', default='/NFS/FutureBrainGen/data/long/img', type=str,
+    parser.add_argument('--dataf', default='/NFS/FutureBrainGen/data/long/down_img_1.7mm', type=str,
                         help='path to studies') ## Manual fix
     parser.add_argument('--maskf', default='', type=str,
                         help='path to studies masks')
-    parser.add_argument('--dataset', default='/NFS/FutureBrainGen/data/long/img', type=str,
+    parser.add_argument('--dataset', default='/NFS/FutureBrainGen/data/long/down_img_1.7mm', type=str,
                         help='path to csv dataset') ## Manual fix
     parser.add_argument('--tg_dataset', default='', type=str,
                         help='path to csv dataset used as target')
@@ -33,7 +33,7 @@ def parse_options():
                         help='model architecture: ' +
                             ' | '.join(model_names) +
                             ' (default: vgg11_bn)')
-    parser.add_argument('-b', '--batch-size', default=8, type=int,
+    parser.add_argument('-b', '--batch-size', default=2, type=int,
                         metavar='N',
                         help='mini-batch size (default: 8), this is the total '
                             'batch size of all GPUs on the current node when '
@@ -94,7 +94,7 @@ def parse_options():
                         help='distributed backend')
     parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                         help='evaluate model on validation set')
-    parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+    parser.add_argument('-j', '--workers', default=0, type=int, metavar='N',
                         help='number of data loading workers (default: 4)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')

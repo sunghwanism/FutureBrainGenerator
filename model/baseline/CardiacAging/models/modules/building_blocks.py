@@ -89,6 +89,44 @@ class CategoricalConditionalBatchNorm(nn.Module):
                'track_running_stats={track_running_stats}'.format(**self.__dict__)
 
 
+# class BasicBlock(nn.Module):
+#     '''
+#     Basic block for handling the parameters (BasicBlock).
+#     '''
+#     def __init__(self, args):
+#         super(BasicBlock, self).__init__()
+
+#         self.args = args
+
+#         # Kernel size NxM
+#         self.kernel_size = self.args['kernel_size']
+#         # Input size
+#         self.H, self.W = self.args.get('input_size', self.args.get('input_shape', (128, 128)))
+#         # Number of filters
+#         self.IF = self.args['IF']
+#         self.OF = self.args['OF']
+#         # Non-linear function to apply (ReLU or LeakyReLU)
+#         self.nonlinearity = self.args['nonlinearity']
+#         # Normalization layer
+#         self.normalization = self.args['normalization']
+
+#         # Define normalization layer based on the provided argument
+#         if self.normalization == 'batchnorm':
+#             self.normlayer = self.get_batchnorm
+#         elif self.normalization == 'layernorm':
+#             self.normlayer = self.get_layernorm
+#         else:
+#             self.normlayer = self.get_identity
+
+#     def get_batchnorm(self, num_features, *_):
+#         return nn.BatchNorm2d(num_features)
+
+#     def get_layernorm(self, num_features, height, width):
+#         return nn.LayerNorm([num_features, height, width])
+
+#     def get_identity(self, *args):
+#         return nn.Identity()
+
 class BasicBlock(nn.Module):
     '''
     Basic block for handling the parameters (BasicBlock).
@@ -98,10 +136,10 @@ class BasicBlock(nn.Module):
 
         self.args = args
 
-        # Kernel size NxM
+        # Kernel size NxMxD
         self.kernel_size = self.args['kernel_size']
         # Input size
-        self.H, self.W = self.args.get('input_size', self.args.get('input_shape', (128, 128)))
+        self.D, self.H, self.W = self.args.get('input_size', self.args.get('input_shape', (4,106,86)))
         # Number of filters
         self.IF = self.args['IF']
         self.OF = self.args['OF']
@@ -109,15 +147,37 @@ class BasicBlock(nn.Module):
         self.nonlinearity = self.args['nonlinearity']
         # Normalization layer
         self.normalization = self.args['normalization']
-        if self.normalization == 'batchnorm':
-            self.normlayer = lambda x1,x2,x3: nn.BatchNorm2d(x1)
-            # self.normlayer = lambda x: nn.BatchNorm2d(x)
-        elif self.normalization == 'layernorm':
-            self.normlayer = lambda x1,x2,x3: nn.LayerNorm([x1,x2,x3])
-            # self.normlayer = lambda x: nn.LayerNorm([x, self.H, self.W])
-        else:
-            self.normlayer = lambda x1,x2,x3: nn.Identity()
 
+        # Define normalization layer based on the provided argument
+        if self.normalization == 'batchnorm':
+            self.normlayer = self.get_batchnorm
+        elif self.normalization == 'layernorm':
+            self.normlayer = self.get_layernorm
+        else:
+            self.normlayer = self.get_identity
+
+    def get_batchnorm(self, num_features, *_):
+        return nn.BatchNorm3d(num_features)
+
+    def get_layernorm(self, num_features, depth, height, width):
+        return nn.LayerNorm([num_features, depth, height, width])
+
+    def get_identity(self, *args):
+        return nn.Identity()
+
+# class ConvBlock(BasicBlock):
+#     '''Convolutional block. A module is composed of two.'''
+#     def __init__(self, args) -> None:
+#         super().__init__(args)
+
+#         self.block = nn.Sequential(
+#             nn.Conv2d(self.IF, self.OF, self.kernel_size, stride=1, padding=1, bias=False),
+#             self.normlayer(self.OF, self.H, self.W),
+#             self.nonlinearity,
+#         )
+
+#     def forward(self, x):
+#         return self.block(x)
 
 class ConvBlock(BasicBlock):
     '''Convolutional block. A module is composed of two.'''
@@ -125,14 +185,28 @@ class ConvBlock(BasicBlock):
         super().__init__(args)
 
         self.block = nn.Sequential(
-            nn.Conv2d(self.IF, self.OF, self.kernel_size, stride=1, padding=1, bias=False),
-            self.normlayer(self.OF, self.H, self.W),
+            nn.Conv3d(self.IF, self.OF, self.kernel_size, stride=1, padding=1, bias=False),
+            self.normlayer(self.OF, self.D, self.H, self.W),
             self.nonlinearity,
         )
 
     def forward(self, x):
         return self.block(x)
 
+# class DeConvBlock(BasicBlock):
+#     '''Transpose convolutional block.'''
+#     def __init__(self, args) -> None:
+#         super().__init__(args)
+
+#         self.block = nn.Sequential(
+#             nn.ConvTranspose2d(
+#                 self.IF, self.OF, self.kernel_size, stride=2, padding=1, output_padding=1, bias=False),
+#             self.normlayer(self.OF, self.H, self.W),
+#             self.nonlinearity,
+#         )
+
+#     def forward(self, x):
+#         return self.block(x)
 
 class DeConvBlock(BasicBlock):
     '''Transpose convolutional block.'''
@@ -140,9 +214,9 @@ class DeConvBlock(BasicBlock):
         super().__init__(args)
 
         self.block = nn.Sequential(
-            nn.ConvTranspose2d(
+            nn.ConvTranspose3d(
                 self.IF, self.OF, self.kernel_size, stride=2, padding=1, output_padding=1, bias=False),
-            self.normlayer(self.OF, self.H, self.W),
+            self.normlayer(self.OF, self.D, self.H, self.W),
             self.nonlinearity,
         )
 
@@ -173,7 +247,6 @@ class DCB_LN2(BasicBlock):
 
         return y
 
-
 class DCB(BasicBlock):
     '''
     Downsampling Convolutional Block (DCB).
@@ -191,13 +264,37 @@ class DCB(BasicBlock):
         self.model = nn.Sequential(
             block1,
             block2,
-            nn.MaxPool2d(kernel_size=(2, 2))
+            nn.MaxPool3d(kernel_size=(2, 2, 2))
         )
 
     def forward(self, x):
         y = self.model(x)
-
         return y
+
+# class DCB(BasicBlock):
+#     '''
+#     Downsampling Convolutional Block (DCB).
+#     '''
+#     def __init__(self, args):
+#         super().__init__(args)
+
+#         args['IF'] = self.IF
+#         args['OF'] = self.OF
+#         block1 = ConvBlock(args)
+#         args['IF'] = self.OF
+#         args['OF'] = self.OF
+#         block2 = ConvBlock(args)
+
+#         self.model = nn.Sequential(
+#             block1,
+#             block2,
+#             nn.MaxPool2d(kernel_size=(2, 2))
+#         )
+
+#     def forward(self, x):
+#         y = self.model(x)
+
+#         return y
 
 
 class DCB_LN_Old(nn.Module):
@@ -393,26 +490,54 @@ class UCB(BasicBlock):
         args['OF'] = self.OF
         block2 = ConvBlock(args)
 
-        self.step1 = nn.ConvTranspose2d(
+        self.step1 = nn.ConvTranspose3d(
             self.IF, self.OF, self.kernel_size, stride=2, padding=1, output_padding=1, bias=False)
-        # TODO: Inverted nonlinearity and normlayer to have the corrected version
+
         self.step2 = nn.Sequential(
             block1,
             block2,
         )
 
-        # self.step2 = nn.Sequential(block1,block2)
-
-        # args['IF'] = self.IF
-        # args['OF'] = self.OF
-        # self.step1 = DeConvBlock(args)
-
     def forward(self, x1, x2):
         x1 = self.step1(x1)
         x = torch.cat((x1, x2), dim=1)
         y = self.step2(x)
-
         return y
+
+# class UCB(BasicBlock):
+#     '''
+#     Upsampling Convolutional Block (UCB).
+#     '''
+#     def __init__(self, args):
+#         super().__init__(args)
+
+#         args['IF'] = 2*self.OF
+#         args['OF'] = self.OF
+#         block1 = ConvBlock(args)
+#         args['IF'] = self.OF
+#         args['OF'] = self.OF
+#         block2 = ConvBlock(args)
+
+#         self.step1 = nn.ConvTranspose2d(
+#             self.IF, self.OF, self.kernel_size, stride=2, padding=1, output_padding=1, bias=False)
+#         # TODO: Inverted nonlinearity and normlayer to have the corrected version
+#         self.step2 = nn.Sequential(
+#             block1,
+#             block2,
+#         )
+
+#         # self.step2 = nn.Sequential(block1,block2)
+
+#         # args['IF'] = self.IF
+#         # args['OF'] = self.OF
+#         # self.step1 = DeConvBlock(args)
+
+#     def forward(self, x1, x2):
+#         x1 = self.step1(x1)
+#         x = torch.cat((x1, x2), dim=1)
+#         y = self.step2(x)
+
+#         return y
 
 
 class UCB_Old(nn.Module):
