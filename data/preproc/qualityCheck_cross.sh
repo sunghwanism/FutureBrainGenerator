@@ -34,7 +34,7 @@ for mri in "$MRI_DIR"/*; do
         echo "Processing $mri ... "
         echo $brain_vol
         # 뇌 볼륨이 너무 작으면 오류로 간주
-        if [ $brain_vol -lt 570000 ]; then
+        if [ $brain_vol -lt 560000 ]; then
             echo "$mri has QC issues (small brain volume)"
             echo "$mri" >> "$BAD_QC_FILE"
             # rm -f "${mri}"
