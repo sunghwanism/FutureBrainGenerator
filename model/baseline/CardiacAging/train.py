@@ -6,6 +6,7 @@ import os
 import glob
 import logging
 import importlib
+import wandb
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,7 @@ import pandas as pd
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
+from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback
 
 from monai.data import ImageDataset, ZipDataset, Dataset
@@ -169,7 +171,7 @@ def main():
     val_data2.reset_index(inplace=True, drop=True)
 
     # transform = MRI3DTransform(target_size=(137, 113), depth=4)
-    transform = CropTransform(crop_size=(86, 106, 86))
+    transform = CropTransform(crop_size=args.crop_size)
 
     train_dset = ImageDataset(train_files, transform=transform, labels=train_labels, reader='NibabelReader')
     train_data_dset = Dataset(data=list(range(len(train_data))), transform=RowExtractor(train_data))
@@ -234,7 +236,6 @@ def main():
         settings['num_validation_samples'] = len(val_loader)
         settings['dataset_file'] = args.dataset
         settings['data_type'] = args.data_type
-        # settings['input_shape'] = (128, 128)
         init_module = importlib.import_module(
             'models.{}'.format(settings['module_name'].lower()))
         model, clbk = init_module.init(args, settings)
@@ -244,13 +245,20 @@ def main():
         # Train with Pytorch Lightning
         pl.seed_everything(42, workers=True)
 
-        tb_logger = pl_loggers.TensorBoardLogger(os.path.join(wd, 'logs'), name=args.name)
+        # tb_logger = pl_loggers.TensorBoardLogger(os.path.join(wd, 'logs'), name=args.name)
+
+        # wandb logger
+        if args.wandb:
+            wandb_logger = WandbLogger(name=args.name, project='CardiacAging')
+            wandb_logger.log_hyperparams(settings)
+            wandb_logger.watch(model, log='all')
+            loggers = [wandb_logger]
 
         # Drop comet logger when testing
-        loggers = [tb_logger]
-        if args.iters is not None:
-            if args.iters <= 10:
-                loggers = [tb_logger]
+        # loggers = [tb_logger]
+        # if args.iters is not None:
+        #     if args.iters <= 10:
+        #         loggers = [tb_logger]
 
         trainer = pl.Trainer(
             deterministic=True,

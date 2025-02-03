@@ -203,7 +203,7 @@ class TransformerXia(nn.Module):
             nn.ReLU(inplace=True),
             nn.Flatten(),
             # nn.Linear(self.image_size[0] * self.image_size[1] * self.image_size[2] * self.OF, self.latent_dim),
-            nn.Linear(3135904, self.latent_dim),
+            nn.Linear(86*106*86*4, self.latent_dim),
             nn.Sigmoid(),
             nn.BatchNorm1d(self.latent_dim)
         )

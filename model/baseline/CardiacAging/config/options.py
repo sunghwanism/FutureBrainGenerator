@@ -20,6 +20,11 @@ def parse_options():
     '''
     parser = argparse.ArgumentParser(description='PyTorch Example')
     # General options
+    parser.add_argument('--crop_size', default=(86,106,86), type=tuple,
+                        help='input shape of images')
+    parser.add_argument('--wandb', action='store_true', default=False,
+                        help='use wandb for logging')
+
     parser.add_argument('--dataf', default='/NFS/FutureBrainGen/data/long/down_img_1.7mm', type=str,
                         help='path to studies') ## Manual fix
     parser.add_argument('--maskf', default='', type=str,
@@ -179,7 +184,7 @@ def parse_options():
     if 'accumulated_grad_batches' not in exp_settings.keys():
         exp_settings['accumulated_grad_batches'] = 1
     if 'warmup_epochs' not in exp_settings.keys():
-        exp_settings['warmup_epochs'] = 0
+        exp_settings['warmup_epochs'] = 20
     if 'scheduler' not in exp_settings.keys():
         exp_settings['scheduler'] = None
     if 'optimizer' not in exp_settings.keys():
