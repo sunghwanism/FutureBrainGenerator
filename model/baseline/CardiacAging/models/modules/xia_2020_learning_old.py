@@ -89,80 +89,6 @@ class FourierFeatures:
         return x_fourier
 
 
-# class TransformerXia(nn.Module):
-#     '''
-#     Combination of fully connected layers with input vectors.
-#     '''
-#     def __init__(self, args):
-#         super(TransformerXia, self).__init__()
-
-#         self.args = args
-#         # Half size of age encoding space
-#         self.enc_half_size = 45
-#         self.enc_vec_size = 2*self.enc_half_size
-#         # Embedding matrix
-#         weights = torch.ones((2*self.enc_half_size, 2*self.enc_half_size))
-#         for i in range(2*self.enc_half_size):
-#             weights[i, i:].zero_()
-#         self.embedding_matrix = weights
-#         self.thr = nn.Threshold(0, 0)
-
-#         # Kernel size NxM
-#         self.kernel_size = self.args['kernel_size']
-#         # Number of filters
-#         self.IF = self.args['IF']
-#         self.OF = self.args['OF']
-#         # Latent space and disease vectors dimension
-#         self.latent_dim = self.args['latent_dim']
-#         self.num_classes = self.args['num_classes']
-#         # Size of smallest image
-#         self.image_size = self.args['image_size']
-        
-#         if self.args['encoding'] == 'positive':
-#             # Ordinal encoding (OE1) - only positive
-#             self.encoding_operation = self._vec_to_enc_pve
-#         elif self.args['encoding'] == 'both':
-#             # Ordinal encoding (OE2) - positive and negative
-#             self.encoding_operation = self._vec_to_enc
-#         elif self.args['encoding'] == 'fourier':
-#             self.encoding_operation = RandomFourierFeatures(self.enc_half_size)
-#         else:
-#             # No encoding
-#             self.encoding_operation = nn.Identity()
-#             self.enc_vec_size = 1
-
-#         # Encoder
-#         self.enc = nn.Sequential(
-#             nn.Conv2d(self.IF, self.OF, self.kernel_size, stride=1, padding=1, bias=False),
-#             nn.BatchNorm2d(self.OF),
-#             nn.ReLU(inplace=True),
-#             nn.Flatten(),
-#             # 15 * 15 * 32 = 7200
-#             nn.Linear(self.image_size*self.image_size*self.OF, self.latent_dim),
-#             nn.Sigmoid(),
-#             nn.BatchNorm1d(self.latent_dim)
-#         )
-
-#         # Transform a vector through a NN
-#         self.trans = nn.Sequential(
-#             # nn.Linear(self.latent_dim + self.num_classes, self.latent_dim),
-#             # +ve and -ve ordinal encoding
-#             # Ordinal encoding (OE1)
-#             nn.Linear(self.latent_dim + self.enc_vec_size, self.latent_dim),
-#             nn.ReLU(inplace=True),
-#             nn.BatchNorm1d(self.latent_dim)
-#         )
-
-#         # Decoder
-#         self.dec = nn.Sequential(
-#             # One variable version
-#             nn.Linear(self.latent_dim, self.image_size*self.image_size*self.OF),
-#             # Two variable version
-#             # nn.Linear(self.latent_dim + self.num_classes, self.image_size*self.image_size*self.OF),
-#             # nn.Linear(self.latent_dim + 2*self.enc_half_size, self.image_size*self.image_size*self.OF),
-#             nn.ReLU(inplace=True)
-#         )
-
 class TransformerXia(nn.Module):
     '''
     Combination of fully connected layers with input vectors.
@@ -171,45 +97,57 @@ class TransformerXia(nn.Module):
         super(TransformerXia, self).__init__()
 
         self.args = args
+        # Half size of age encoding space
         self.enc_half_size = 45
-        self.enc_vec_size = 2 * self.enc_half_size
-        weights = torch.ones((2 * self.enc_half_size, 2 * self.enc_half_size))
-        for i in range(2 * self.enc_half_size):
+        self.enc_vec_size = 2*self.enc_half_size
+        # Embedding matrix
+        weights = torch.ones((2*self.enc_half_size, 2*self.enc_half_size))
+        for i in range(2*self.enc_half_size):
             weights[i, i:].zero_()
         self.embedding_matrix = weights
         self.thr = nn.Threshold(0, 0)
 
+        # Kernel size NxM
         self.kernel_size = self.args['kernel_size']
+        # Number of filters
         self.IF = self.args['IF']
         self.OF = self.args['OF']
+        # Latent space and disease vectors dimension
         self.latent_dim = self.args['latent_dim']
         self.num_classes = self.args['num_classes']
-        self.image_size = [86,106,86]
-
+        # Size of smallest image
+        self.image_size = self.args['image_size']
+        
         if self.args['encoding'] == 'positive':
+            # Ordinal encoding (OE1) - only positive
             self.encoding_operation = self._vec_to_enc_pve
         elif self.args['encoding'] == 'both':
+            # Ordinal encoding (OE2) - positive and negative
             self.encoding_operation = self._vec_to_enc
         elif self.args['encoding'] == 'fourier':
             self.encoding_operation = RandomFourierFeatures(self.enc_half_size)
         else:
+            # No encoding
             self.encoding_operation = nn.Identity()
             self.enc_vec_size = 1
 
         # Encoder
         self.enc = nn.Sequential(
-            nn.Conv3d(self.IF, self.OF, self.kernel_size, stride=1, padding=1, bias=False),
-            nn.BatchNorm3d(self.OF),
+            nn.Conv2d(self.IF, self.OF, self.kernel_size, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(self.OF),
             nn.ReLU(inplace=True),
             nn.Flatten(),
-            # nn.Linear(self.image_size[0] * self.image_size[1] * self.image_size[2] * self.OF, self.latent_dim),
-            nn.Linear(3135904, self.latent_dim),
+            # 15 * 15 * 32 = 7200
+            nn.Linear(self.image_size*self.image_size*self.OF, self.latent_dim),
             nn.Sigmoid(),
             nn.BatchNorm1d(self.latent_dim)
         )
 
         # Transform a vector through a NN
         self.trans = nn.Sequential(
+            # nn.Linear(self.latent_dim + self.num_classes, self.latent_dim),
+            # +ve and -ve ordinal encoding
+            # Ordinal encoding (OE1)
             nn.Linear(self.latent_dim + self.enc_vec_size, self.latent_dim),
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(self.latent_dim)
@@ -217,10 +155,13 @@ class TransformerXia(nn.Module):
 
         # Decoder
         self.dec = nn.Sequential(
-            nn.Linear(self.latent_dim, self.image_size[0] * self.image_size[1] * self.image_size[2] * self.OF//8),
+            # One variable version
+            nn.Linear(self.latent_dim, self.image_size*self.image_size*self.OF),
+            # Two variable version
+            # nn.Linear(self.latent_dim + self.num_classes, self.image_size*self.image_size*self.OF),
+            # nn.Linear(self.latent_dim + 2*self.enc_half_size, self.image_size*self.image_size*self.OF),
             nn.ReLU(inplace=True)
         )
-
 
     def _vec_to_enc(self, vec):
         'Transform 1-dim. vector into ordinal encoding vector.'
@@ -277,8 +218,7 @@ class TransformerXia(nn.Module):
         # z2cat = torch.cat((z2, vec), dim=1)
         z = self.dec(z2cat)
 
-        # out = torch.reshape(z, (x.size(0), self.OF, x.size(2), x.size(3), x.size(4)))
-        out = torch.reshape(z, (x.size(0), self.OF, self.image_size[0]//2, self.image_size[1]//2, self.image_size[2]//2))
+        out = torch.reshape(z, (x.size(0), self.OF, x.size(2), x.size(3)))
 
         return out
 
@@ -1188,76 +1128,103 @@ class GeneratorXiaReduced(nn.Module):
         super(GeneratorXiaReduced, self).__init__()
 
         self.args = args
-        self.kernel_size = tuple(self.args['kernel_size'])
+
+        # Kernel size NxM
+        self.kernel_size = self.args['kernel_size']
         self.input_shape = np.asarray(self.args['input_shape'])
+        # number of features to start with
         self.num_feat = args['initial_filters']
+        # Latent space and disease vectors dimension
         self.latent_dim = self.args['latent_space_dim']
         self.num_classes = self.args['num_classes']
         self.n_channels = self.args['n_channels']
         self.use_tanh = self.args['use_tanh']
         self.normalization = self.args['gen_params']['norm']
 
-        self.nonlinearity = nn.LeakyReLU(0.2, inplace=True) if self.args['gen_params']['activation'] == 'lrelu' else nn.ReLU(inplace=True)
+        if self.args['gen_params']['activation'] == 'lrelu':
+            self.nonlinearity = nn.LeakyReLU(0.2, inplace=True)
+        elif self.args['gen_params']['activation'] == 'relu':
+            self.nonlinearity = nn.ReLU(inplace=True)
+        else:
+            raise ValueError("Activation function '{}' not implemented.".format(
+                self.args['gen_params']['activation']))
 
+        # Encoding path
         self.enc1 = nn.Sequential(
-            nn.Conv3d(self.n_channels, self.num_feat,
+            nn.Conv2d(self.n_channels, self.num_feat,
                 self.kernel_size, stride=1, padding=1, bias=False),
             self.nonlinearity,
-            nn.BatchNorm3d(self.num_feat),
+            nn.BatchNorm2d(self.num_feat),
         )
         self.enc2 = DCB({
             'input_size': self.input_shape, 'nonlinearity': self.nonlinearity,
             'normalization': self.normalization, 'kernel_size': self.kernel_size,
             'IF': self.num_feat, 'OF': self.num_feat})
 
+        # Transformer
         self.trans = TransformerXia(
             {'kernel_size': self.kernel_size,
             'IF': self.num_feat, 'OF': self.num_feat,
             'latent_dim': self.latent_dim,
             'encoding': 'None',
-            # 'image_size': 118,
+            'image_size': 128,
             'num_classes': self.num_classes}
         )
 
+        # Decoding path
         self.dec1 = UCB({
             'kernel_size': self.kernel_size, 'IF': self.num_feat*(1+1), 'OF': self.num_feat,
             'normalization': self.normalization, 'nonlinearity': self.nonlinearity}, )
 
         self.dec0 = nn.Sequential(
-            nn.Conv3d(self.num_feat, self.num_feat, self.kernel_size, stride=1, bias=False),
-            nn.BatchNorm3d(self.num_feat),
+            nn.Conv2d(self.num_feat, self.num_feat, self.kernel_size, stride=1, bias=False),
+            nn.BatchNorm2d(self.num_feat),
             self.nonlinearity,
-            nn.ConvTranspose3d(
+            nn.ConvTranspose2d(
                 self.num_feat, self.num_feat, self.kernel_size, stride=1, bias=False),
-            nn.Conv3d(
+            # nn.Conv2d(
+            #     self.num_feat, self.n_channels, self.kernel_size, stride=1, padding=1, bias=False),
+            # nn.BatchNorm2d(self.n_channels),
+            # self.nonlinearity # Should be chosen with the experiment
+            nn.Conv2d(
                 self.num_feat, self.num_feat, self.kernel_size, stride=1, padding=1, bias=False),
-            nn.BatchNorm3d(self.num_feat),
-            nn.Conv3d(
+            nn.BatchNorm2d(self.num_feat),
+            nn.Conv2d(
                 self.num_feat, self.n_channels, self.kernel_size, stride=1, padding=1, bias=False)
         )
 
-        self.activation = nn.Tanh() if self.use_tanh else nn.Identity()
+        if self.use_tanh:
+            self.activation = nn.Tanh()
+        else:
+            self.activation = nn.Identity()
 
     def forward(self, x, idx):
-        # print('################before gen enc1', x.size())
+        '''Call function.'''
+        # Encoding path
         enc1 = x
         enc2 = self.enc1(enc1)
-        # print('################after gen enc1', enc2.size())
         enc3 = self.enc2(enc2)
-        # print('################after gen enc2', enc3.size())
+        # print('\n-> enc2', enc2.size())
+        # print('\n-> enc3', enc3.size())
+
+        # Transformer
         aux = self.trans(enc3, idx)
-        # print('################after trans', aux.size())
+        # print('\n-> aux', aux.size())
+
+        # Decoding path
         dec2 = torch.cat((aux, enc3), dim=1)
-        # print('################after gen dec2', dec2.size())
-        # print('input shape', self.input_shape)
-        # print('kernel size', self.kernel_size)
-        # print('num_feat', self.num_feat)
         dec1 = self.dec1(dec2, enc2)
-        # print('################after gen dec1', dec1.size())
+        # print('\n-> dec2', dec2.size())
+        # print('\n-> dec1', dec1.size())
+
         _map = self.dec0(dec1)
+        # print('\n-> _map', _map.size())
+
+        # Add mapping to input image
         output = _map + x
         output = self.activation(output)
-        # print('################after gen output', output.size())
+        # print('\n-> output', output.size())
+
         return output, _map
 
 
@@ -1267,21 +1234,32 @@ class DiscriminatorXiaReduced(nn.Module):
         super(DiscriminatorXiaReduced, self).__init__()
 
         self.args = args
+
+        # Kernel size NxM
         self.kernel_size = self.args['kernel_size']
         self.input_shape = np.asarray(self.args['input_shape'])
+        # number of features to start with
         self.num_feat = args['initial_filters']
+        # Latent space and disease vectors dimension
         self.latent_dim = self.args['latent_space_dim']
         self.num_classes = self.args['num_classes']
         self.n_channels = self.args['n_channels']
         self.normalization = self.args['discr_params']['norm']
 
-        self.nonlinearity = nn.LeakyReLU(0.2, inplace=True) if self.args['discr_params']['activation'] == 'lrelu' else nn.ReLU(inplace=True)
+        if self.args['discr_params']['activation'] == 'lrelu':
+            self.nonlinearity = nn.LeakyReLU(0.2, inplace=True)
+        elif self.args['discr_params']['activation'] == 'relu':
+            self.nonlinearity = nn.ReLU(inplace=True)
+        else:
+            raise ValueError("Activation function '{}' not implemented.".format(
+                self.args['discr_params']['activation']))
 
+        # Encoding path. Shapes - (batch size, filters, rows, cols)
         self.enc1 = nn.Sequential(
-            nn.Conv3d(self.n_channels, self.num_feat,
+            nn.Conv2d(self.n_channels, self.num_feat,
                 self.kernel_size, stride=1, padding=1, bias=False),
             self.nonlinearity,
-            nn.BatchNorm3d(self.num_feat),
+            nn.BatchNorm2d(self.num_feat),
         )
         self.enc2 = DCB({
             'input_size': self.input_shape, 'nonlinearity': self.nonlinearity,
@@ -1290,25 +1268,52 @@ class DiscriminatorXiaReduced(nn.Module):
 
         self.encoder = nn.Sequential(self.enc1, self.enc2)
 
+        # Transformer
         self.trans = TransformerXia(
             {'kernel_size': self.kernel_size,
             'IF': self.num_feat, 'OF': self.num_feat,
             'latent_dim': self.latent_dim,
-            # 'image_size': 113,
+            'image_size': 128,
             'encoding': self.args['discr_params']['encoding'],
             'num_classes': self.num_classes}
         )
 
+        # Judge
         self.judge = nn.Sequential(
-            nn.Conv3d(self.num_feat*(1+1), self.num_feat,
+            # nn.Dropout(p=0.5),
+            # (BS, 64, 128, 128)
+            nn.Conv2d(self.num_feat*(1+1), self.num_feat,
                       self.kernel_size, stride=1, padding=1, bias=False),
             self.nonlinearity,
-            nn.AdaptiveAvgPool3d(1)
+            # (BS, 32, 128, 128)
+            nn.AvgPool2d(128) # Average pooling per feature to do global average pooling
+                             # One value in the kernel per pixel.
+            # (BS, 32, 1, 1)
         )
 
     def forward(self, x, idx):
+        # Encoding path
         enc = self.encoder(x)
+        # enc = x
+        # for layer in self.encoder:
+        #     enc = layer(enc)
+        #     print(enc.size(), layer)
+
+        # Transformer
         aux = self.trans(enc, idx)
+
+        # Decoding path
         dec = torch.cat((aux, enc), dim=1)
+        # print('\n-> dec', dec.size())
+
         output = self.judge(dec)
+        # enc = dec
+        # for cnt,layer in enumerate(self.judge):
+        #     enc = layer(enc)
+        #     print('\n-> (dec) enc{}'.format(cnt+1), torch.max(enc), torch.min(enc))
+        #     print('\t name', enc.size(), layer)
+        # output = enc
+
+        # print('\n-> output', output.size())
+
         return output

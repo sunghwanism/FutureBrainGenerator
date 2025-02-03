@@ -3,15 +3,15 @@ LATENT_DIM = 130
 
 EXPERIMENT_PARAMS = {
     # 'augment': True,  # Use data augmentation
-    'batch_size': 8,
+    'batch_size': 3,
     'beta1': 0.9,
     'beta2': 0.999,
     'cycle_cons_weight': 0,
     'epochs': 300,
     'gradient_penalty_weight': 10,
     'initial_filters': 32,
-    'input_shape': (256,256),
-    'kernel_size': (3, 3),
+    'input_shape': (86,106,86), # Modified by HG (original : (256,256))
+    'kernel_size': (3, 3, 3),
     'latent_space_dim': LATENT_DIM,
     'learning_rate': 1e-4,  # Learning rate
     'module_name': 'GAN',
@@ -39,7 +39,7 @@ EXPERIMENT_PARAMS = {
         'latent_space': LATENT_DIM,
         'depth': 5,
         'encoding': 'none',
-        'input_shape': (256,256),
+        'input_shape': (86,106,86),
         'model': 'DiscriminatorXia',
         'name': 'discriminator',
         'norm': 'batchnorm',
@@ -50,7 +50,7 @@ EXPERIMENT_PARAMS = {
         'latent_space': LATENT_DIM,
         'depth': 4,
         'encoding': 'none',
-        'input_shape': (256,256),
+        'input_shape': (86,106,86),
         'model': 'GeneratorXia',
         'name': 'generator',
         'norm': 'layernorm',

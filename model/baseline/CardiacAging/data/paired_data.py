@@ -54,6 +54,7 @@ class AlignedPairedData(PairedData):
         #     data = next(self.data_loader_iter)
         #     self.iter += 1
         #     return {'A': data[0], 'B': data[1]}
+        assert len(self.dataLoaderA) == len(self.dataLoaderB), "DataLoader lengths must match."
 
         a = None
         b = None
@@ -61,18 +62,14 @@ class AlignedPairedData(PairedData):
         try:
             a = next(self.dataLoaderAIter)
         except StopIteration:
-            if a is None:
-                self.stopA = True
-                self.dataLoaderAIter = iter(self.dataLoaderA)
-                a = next(self.dataLoaderAIter)
+            self.stopA = True
+            a = None
 
         try:
             b = next(self.dataLoaderBIter)
         except StopIteration:
-            if b is None:
-                self.stopB = True
-                self.dataLoaderBIter = iter(self.dataLoaderB)
-                b = next(self.dataLoaderBIter)
+            self.stopB = True
+            b = None
 
         if self.stopA and self.stopB:
             self.stopA = False
