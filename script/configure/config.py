@@ -2,9 +2,10 @@ import argparse
 
 ################### VQVAE Configuration ###################
 
-def VQVAE_get_run_parser():
+def get_run_parser():
     parser = argparse.ArgumentParser()
     model = 'vqvae'
+
     # Seed
     parser.add_argument('--seed', type=int, default=42,
                         help='Random seed')
@@ -14,9 +15,9 @@ def VQVAE_get_run_parser():
                         help='Which model to run')
     
     # Data
-    parser.add_argument('--data_path', type=str, default=f'/data/ADDiff/data/{model}',
+    parser.add_argument('--data_path', type=str, default=f'/NFS/FutureBrainGen/data/cross/',
                         help='Path to data')
-    parser.add_argument('--crop_size',type=int, nargs='+', default=(96, 128, 96),)
+    parser.add_argument('--crop_size',type=int, nargs='+', default=(86, 106, 86),)
     
     # Device Arguments
     parser.add_argument('--device_id', type=str,

@@ -52,45 +52,56 @@ class PositionalEmbedding3D(nn.Module):
 
 
 class MedCrossAttention(CrossAttention):
-    def __init__(self, emb_size):
-        super(MedCrossAttention, self).__init__()
+    def __init__(self, emb_size, **kwargs):
+        super(MedCrossAttention, self).__init__(**kwargs)
 
         self.emb_size = emb_size
 
-        self.to_q = nn.Linear(emb_size, self.inner_dim, bias=False)
-        self.to_k = nn.Linear(self.cross_attention_dim, self.inner_dim, bias=False)
-        self.to_v = nn.Linear(self.cross_attention_dim, self.inner_dim, bias=False)
+        self.to_q = nn.Linear(emb_size, inner_dim, bias=False)
+        self.to_k = nn.Linear(cross_attention_dim, inner_dim, bias=False)
+        self.to_v = nn.Linear(cross_attention_dim, inner_dim, bias=False)
 
-        self.to_out = nn.Sequential(nn.Linear(self.inner_dim, self.query_dim), nn.Dropout(self.dropout))
+        self.to_out = nn.Sequential(nn.Linear(inner_dim, query_dim), nn.Dropout(dropout))
 
     
 
 class MedViTBlock(BasicTransformerBlock):
-    def __init__(self, emb_size, dropout):
-        super(MedViTBlock, self).__init__(emb_size, dropout)
+        def __init__(
+        self,
+        emb_size: int,
+        num_channels: int,
+        num_attention_heads: int,
+        num_head_channels: int,
+        dropout: float = 0.0,
+        cross_attention_dim: int | None = None,
+        upcast_attention: bool = False,
+        use_flash_attention: bool = False,
+        **kwargs
+    ) -> None:
+        super(MedViTBlock, self).__init__(emb_size, **kwargs)
 
         self.attn1 = MedCrossAttention(
                                         emb_size=emb_size,
-                                        query_dim=self.num_channels,
-                                        cross_attention_dim=self.cross_attention_dim,
-                                        num_attention_heads=self.num_attention_heads,
-                                        num_head_channels=self.num_head_channels,
+                                        query_dim=num_channels,
+                                        cross_attention_dim=cross_attention_dim,
+                                        num_attention_heads=num_attention_heads,
+                                        num_head_channels=num_head_channels,
                                         dropout=dropout,
-                                        upcast_attention=self.upcast_attention,
-                                        use_flash_attention=self.use_flash_attention,
+                                        upcast_attention=upcast_attention,
+                                        use_flash_attention=use_flash_attention,
         )
 
         self.attn2 = MedCrossAttention(
                                         emb_size=emb_size,
-                                        query_dim=self.num_channels,
-                                        num_attention_heads=self.num_attention_heads,
-                                        num_head_channels=self.num_head_channels,
+                                        query_dim=num_channels,
+                                        num_attention_heads=num_attention_heads,
+                                        num_head_channels=num_head_channels,
                                         dropout=dropout,
-                                        upcast_attention=self.upcast_attention,
-                                        use_flash_attention=self.use_flash_attention,
+                                        upcast_attention=upcast_attention,
+                                        use_flash_attention=use_flash_attention,
         )
 
-        self.ff = MLPBlock(hidden_size=self.num_channels, mlp_dim=self.num_channels * 4, act="GEGLU", dropout_rate=dropout)
+        self.ff = MLPBlock(hidden_size=num_channels, mlp_dim=num_channels * 4, act="GEGLU", dropout_rate=dropout)
 
 
     def forward(self, x: torch.Tensor, context: torch.Tensor | None = None) -> torch.Tensor:
