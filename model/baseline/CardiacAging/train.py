@@ -246,7 +246,14 @@ def main():
         # Train with Pytorch Lightning
         pl.seed_everything(42, workers=True)
 
-        tb_logger = pl_loggers.TensorBoardLogger(os.path.join(wd, 'logs'), name=args.name)
+        # tb_logger = pl_loggers.TensorBoardLogger(os.path.join(wd, 'logs'), name=args.name)
+
+        # wandb logger
+        if args.wandb:
+            wandb_logger = WandbLogger(name=args.name, project='CardiacAging')
+            wandb_logger.log_hyperparams(settings)
+            wandb_logger.watch(model, log='all')
+            loggers = [wandb_logger]
 
         # wandb logger
         if args.wandb:
