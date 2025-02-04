@@ -139,7 +139,7 @@ class BasicBlock(nn.Module):
         # Kernel size NxMxD
         self.kernel_size = self.args['kernel_size']
         # Input size
-        self.D, self.H, self.W = self.args.get('input_size', self.args.get('input_shape', (4,106,86)))
+        self.D, self.H, self.W = self.args.get('input_size', self.args.get('input_shape', (86,106,86)))
         # Number of filters
         self.IF = self.args['IF']
         self.OF = self.args['OF']

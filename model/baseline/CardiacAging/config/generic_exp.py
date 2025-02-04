@@ -10,7 +10,7 @@ EXPERIMENT_PARAMS = {
     'epochs': 300,
     'gradient_penalty_weight': 10,
     'initial_filters': 32,
-    'input_shape': (4,106,86), # Modified by HG (original : (256,256))
+    'input_shape': (86,106,86), # Modified by HG (original : (256,256))
     'kernel_size': (3, 3, 3),
     'latent_space_dim': LATENT_DIM,
     'learning_rate': 1e-4,  # Learning rate
@@ -39,7 +39,7 @@ EXPERIMENT_PARAMS = {
         'latent_space': LATENT_DIM,
         'depth': 5,
         'encoding': 'none',
-        'input_shape': (4,106,86),
+        'input_shape': (86,106,86),
         'model': 'DiscriminatorXia',
         'name': 'discriminator',
         'norm': 'batchnorm',
@@ -50,7 +50,7 @@ EXPERIMENT_PARAMS = {
         'latent_space': LATENT_DIM,
         'depth': 4,
         'encoding': 'none',
-        'input_shape': (4,106,86),
+        'input_shape': (86,106,86),
         'model': 'GeneratorXia',
         'name': 'generator',
         'norm': 'layernorm',

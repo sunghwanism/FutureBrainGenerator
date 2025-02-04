@@ -16,6 +16,7 @@ import torchvision.utils as vutils
 
 import pytorch_lightning as pl
 import matplotlib.pyplot as plt
+import nibabel as nib
 
 from pytorch_lightning.callbacks import Callback
 
@@ -104,7 +105,7 @@ class GAN(pl.LightningModule):
         # networks
         if self.hparams.reduced:
             if 'input_size' not in kwargs:
-                kwargs['input_size'] = kwargs.get('input_shape', (128, 128))  # add default
+                kwargs['input_size'] = kwargs.get('input_shape', (86,106,86))  # add default
             self.generator = GeneratorXiaReduced(kwargs)
             self.discriminator = DiscriminatorXiaReduced(kwargs)
         else:
@@ -305,88 +306,120 @@ class GAN(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         or_im, or_lbl, *im_data = batch['A']
+        tg_im, tg_lbl, *tg_data = batch['B']
 
         results_dir = self.hparams.results_folder
         os.makedirs(results_dir, exist_ok=True)
-        samples_dir = os.path.join(results_dir, 'samples')
-        os.makedirs(samples_dir, exist_ok=True)
-        numpy_dir = os.path.join(results_dir, 'numpy')
-        os.makedirs(numpy_dir, exist_ok=True)
+        # samples_dir = os.path.join(results_dir, 'samples')
+        # os.makedirs(samples_dir, exist_ok=True)
+        # numpy_dir = os.path.join(results_dir, 'numpy')
+        # os.makedirs(numpy_dir, exist_ok=True)
 
         # Generate sample of target images
         older_ims = []
-        younger_ims = []
-        for i in range(30):
-            # assuming batch size of 1
-            # Getting older
-            tg_lbl = im_data[2] + i
-            x_fake, _map = self(or_im, tg_lbl-or_lbl)
-            x_fake = x_fake.clip(0, 1)
-            _map = (_map - _map.median())/2 + 0.5
-            _map = _map.clip(0, 1)
-            older_ims.append(
-                (x_fake.cpu().numpy().squeeze(), _map.cpu().numpy().squeeze()))
-            # Getting younger
-            tg_lbl = im_data[2] - i
-            x_fake, _map = self(or_im, tg_lbl-or_lbl)
-            x_fake = x_fake.clip(0, 1)
-            _map = (_map - _map.median())/2 + 0.5
-            _map = _map.clip(0, 1)
-            younger_ims.append(
-                (x_fake.cpu().numpy().squeeze(), _map.cpu().numpy().squeeze()))
+        # younger_ims = []
+        # for i in range(30):
+        #     # assuming batch size of 1
+        #     # Getting older
+        #     print(im_data[0])
+        #     print('or_lbl : ', or_lbl, ' tg_lbl : ', tg_lbl)
+        #     # tg_lbl = im_data[2] + i
+        #     x_fake, _map = self(or_im, tg_lbl-or_lbl)
+        #     x_fake = x_fake.clip(0, 1)
+        #     _map = (_map - _map.median())/2 + 0.5
+        #     _map = _map.clip(0, 1)
+        #     older_ims.append(
+        #         (x_fake.cpu().numpy().squeeze(), _map.cpu().numpy().squeeze()))
+        #     # Getting younger
+        #     tg_lbl = im_data[2] - i
+        #     x_fake, _map = self(or_im, tg_lbl-or_lbl)
+        #     x_fake = x_fake.clip(0, 1)
+        #     _map = (_map - _map.median())/2 + 0.5
+        #     _map = _map.clip(0, 1)
+        #     younger_ims.append(
+        #         (x_fake.cpu().numpy().squeeze(), _map.cpu().numpy().squeeze()))
 
-        # Filename
-        if batch_idx < 20:
-            filename = '{}_sample_{:.0f}_sex-{:.0f}_age-{:.0f}_bmi-{:.1f}.png'
-            filename = os.path.join(samples_dir, filename)
-            # Older subject
-            fig = plt.figure(figsize=(20,15))
-            or_im = (or_im - or_im.min())/(or_im.max() - or_im.min())
-            row1 = np.hstack([or_im.cpu().numpy().squeeze()]*6)
-            # Plot only steps of 5 years
-            row2 = np.hstack([m for _,m in older_ims[::5]]) # Maps
-            row3 = np.hstack([i for i,_ in older_ims[::5]]) # Imgs
-            grid = np.vstack([row1,row2,row3])
-            plt.imshow(grid, cmap='gray')
-            fig.savefig(filename.format(
-                'old', im_data[0].item(), im_data[1].item(),
-                im_data[2].item(), im_data[3].item()), dpi=300)
-            plt.close()
+        # print('or_lbl : ', or_lbl, ' tg_lbl : ', tg_lbl)
+        # tg_lbl = im_data[2] + i
+        x_fake, _map = self(or_im, tg_lbl-or_lbl)
+        x_fake = x_fake.clip(0, 1)
+        _map = (_map - _map.median())/2 + 0.5
+        _map = _map.clip(0, 1)
 
-            # Younger subject
-            fig = plt.figure(figsize=(20,15))
-            row1 = np.hstack([or_im.cpu().numpy().squeeze()]*6)
-            # Plot only steps of 5 years
-            row2 = np.hstack([m for _,m in younger_ims[:26][::-1][::5]]) # Maps
-            row3 = np.hstack([i for i,_ in younger_ims[:26][::-1][::5]]) # Imgs
-            grid = np.vstack([row1,row2,row3])
-            plt.imshow(grid, cmap='gray')
-            fig.savefig(filename.format(
-                'yng', im_data[0].item(), im_data[1].item(),
-                im_data[2].item(), im_data[3].item()), dpi=300)
-            plt.close()
+        # save images as nii files
+        filename = 'sample_{:d}_Sex-{:d}_Age-{:d}{}.nii.gz'
+        filename = os.path.join(samples_dir, filename)
+
+        # Original image
+        or_im = or_im.cpu().numpy().squeeze()
+        or_im = nib.Nifti1Image(or_im, np.eye(4))
+        nib.save(or_im, filename.format(
+            batch_idx,  int(im_data[0]['Sex'].item()), int(or_lbl.item()), '_original'))
+        
+        # Target image
+        tg_im = tg_im.cpu().numpy().squeeze()
+        tg_im = nib.Nifti1Image(tg_im, np.eye(4))
+        nib.save(tg_im, filename.format(
+            batch_idx, int(im_data[0]['Sex'].item()), int(tg_lbl.item()), '_target'))
+        
+        # Generated image
+        x_fake = x_fake.cpu().numpy().squeeze()
+        x_fake = nib.Nifti1Image(x_fake, np.eye(4))
+        nib.save(x_fake, filename.format(
+            batch_idx, int(im_data[0]['Sex'].item()), int(tg_lbl.item()), '_synthetic'))
+
+        # # Filename
+        # if batch_idx < 20:
+        #     filename = '{}_sample_{:.0f}_MMSE-{:.0f}_Sex-{:.0f}_Education-{:.1f}.png'
+        #     filename = os.path.join(samples_dir, filename)
+        #     # Older subject
+        #     fig = plt.figure(figsize=(20,15))
+        #     or_im = (or_im - or_im.min())/(or_im.max() - or_im.min())
+        #     row1 = np.hstack([or_im.cpu().numpy().squeeze()]*6)
+        #     # Plot only steps of 5 years
+        #     row2 = np.hstack([m for _,m in older_ims[::5]]) # Maps
+        #     row3 = np.hstack([i for i,_ in older_ims[::5]]) # Imgs
+        #     grid = np.vstack([row1,row2,row3])
+        #     plt.imshow(grid, cmap='gray')
+        #     fig.savefig(filename.format(
+        #         'old', im_data[0].item(), im_data[1].item(),
+        #         im_data[2].item(), im_data[3].item()), dpi=300)
+        #     plt.close()
+
+            # # Younger subject
+            # fig = plt.figure(figsize=(20,15))
+            # row1 = np.hstack([or_im.cpu().numpy().squeeze()]*6)
+            # # Plot only steps of 5 years
+            # row2 = np.hstack([m for _,m in younger_ims[:26][::-1][::5]]) # Maps
+            # row3 = np.hstack([i for i,_ in younger_ims[:26][::-1][::5]]) # Imgs
+            # grid = np.vstack([row1,row2,row3])
+            # plt.imshow(grid, cmap='gray')
+            # fig.savefig(filename.format(
+            #     'yng', im_data[0].item(), im_data[1].item(),
+            #     im_data[2].item(), im_data[3].item()), dpi=300)
+            # plt.close()
 
         # ---- Save numpy arrays ----
-        filename = 'sample_{:.0f}_sex-{:.0f}_age-{:.0f}_bmi-{:.1f}_{}_step_{}'
-        filename = os.path.join(numpy_dir, filename)
-        # Getting older
-        for idx, (im, map) in enumerate(older_ims):
-            np.save(filename.format(
-                im_data[0].item(), im_data[1].item(),
-                im_data[2].item(), im_data[3].item(), 'image', idx), im)
-            np.save(filename.format(
-                im_data[0].item(), im_data[1].item(),
-                im_data[2].item(), im_data[3].item(), 'map', idx), map)
-        # Rejuvenating
-        for idx, (im, map) in enumerate(younger_ims):
-            if idx == 0:
-                continue
-            np.save(filename.format(
-                im_data[0].item(), im_data[1].item(),
-                im_data[2].item(), im_data[3].item(), 'image', -idx), im)
-            np.save(filename.format(
-                im_data[0].item(), im_data[1].item(),
-                im_data[2].item(), im_data[3].item(), 'map', -idx), map)
+        # filename = 'sample_{:.0f}_MMSE-{:.0f}_Sex-{:.0f}_Education-{:.1f}_{}_step_{}'
+        # filename = os.path.join(numpy_dir, filename)
+        # # Getting older
+        # for idx, (im, map) in enumerate(older_ims):
+        #     np.save(filename.format(
+        #         im_data[0].item(), im_data[1].item(),
+        #         im_data[2].item(), im_data[3].item(), 'image', idx), im)
+        #     np.save(filename.format(
+        #         im_data[0].item(), im_data[1].item(),
+        #         im_data[2].item(), im_data[3].item(), 'map', idx), map)
+        # # Rejuvenating
+        # for idx, (im, map) in enumerate(younger_ims):
+        #     if idx == 0:
+        #         continue
+        #     np.save(filename.format(
+        #         im_data[0].item(), im_data[1].item(),
+        #         im_data[2].item(), im_data[3].item(), 'image', -idx), im)
+        #     np.save(filename.format(
+        #         im_data[0].item(), im_data[1].item(),
+        #         im_data[2].item(), im_data[3].item(), 'map', -idx), map)
 
     # Alternating schedule for optimizer steps (e.g. GANs)
     def optimizer_step(self, epoch, batch_idx, optimizer,

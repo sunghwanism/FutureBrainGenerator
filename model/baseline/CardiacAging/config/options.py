@@ -20,6 +20,11 @@ def parse_options():
     '''
     parser = argparse.ArgumentParser(description='PyTorch Example')
     # General options
+    parser.add_argument('--crop_size', default=(86,106,86), type=tuple,
+                        help='input shape of images')
+    parser.add_argument('--wandb', action='store_true', default=False,
+                        help='use wandb for logging')
+
     parser.add_argument('--dataf', default='/NFS/FutureBrainGen/data/long/down_img_1.7mm', type=str,
                         help='path to studies') ## Manual fix
     parser.add_argument('--maskf', default='', type=str,
@@ -44,7 +49,7 @@ def parse_options():
                         help='GPU id to use.')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
-    parser.add_argument('--resf', default='results',
+    parser.add_argument('--resf', default='/NFS/FutureBrainGen/results/cardiac',
                         help='folder to output images')
     parser.add_argument('--timeframe', default=0,
                         help='time frame to consider')
@@ -80,7 +85,7 @@ def parse_options():
     parser.add_argument('--n_critic', type=int, default=5,
                         help='iterations over critic per iteration over generator')
     parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
-    parser.add_argument('--outf', default='checkpoints',
+    parser.add_argument('--outf', default='/NFS/FutureBrainGen/ckpt/cardiac',
                         help='folder to output model checkpoints')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                         help='manual epoch number (useful on restarts)')
@@ -113,7 +118,7 @@ def parse_options():
                         help='path to latest checkpoint (default: none)')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
-    parser.add_argument('--test-batch-size', type=int, default=4, metavar='N',
+    parser.add_argument('--test-batch-size', type=int, default=2, metavar='N',
                         help='input batch size for testing (default: 4)')
     parser.add_argument('--world-size', default=-1, type=int,
                         help='number of nodes for distributed training')
@@ -179,7 +184,7 @@ def parse_options():
     if 'accumulated_grad_batches' not in exp_settings.keys():
         exp_settings['accumulated_grad_batches'] = 1
     if 'warmup_epochs' not in exp_settings.keys():
-        exp_settings['warmup_epochs'] = 0
+        exp_settings['warmup_epochs'] = 20
     if 'scheduler' not in exp_settings.keys():
         exp_settings['scheduler'] = None
     if 'optimizer' not in exp_settings.keys():

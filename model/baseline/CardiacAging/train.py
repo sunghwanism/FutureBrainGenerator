@@ -6,6 +6,7 @@ import os
 import glob
 import logging
 import importlib
+import wandb
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,7 @@ import pandas as pd
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
+from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback
 
 from monai.data import ImageDataset, ZipDataset, Dataset
@@ -27,7 +29,7 @@ from monai.transforms import Transform, Transpose
 # from models.classifier import Classifier
 # from models.segmentor import Segmentor
 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 log = logging.getLogger("proposed_executor")
 wd = os.path.dirname(os.path.realpath(__file__))
 
@@ -142,34 +144,35 @@ def main():
     ckpt_folder = os.path.join(args.outf, args.name)
     os.makedirs(ckpt_folder, exist_ok=True)
 
-    df = pd.read_csv("/NFS/FutureBrainGen/data/long/long_HC_trainval.csv")
+    df = pd.read_csv("/NFS/FutureBrainGen/data/long/long_old_HC_subj_phenotype_splited.csv")
     df['File_name_B'] = df['File_name_B'] + '.gz'
     df['File_name_F'] = df['File_name_F'] + '.gz'
     train_df = df[df['mode']=='train']
     val_df = df[df['mode']=='val']
+    test_df = df[df['mode']=='test']
     
     train_files = [os.path.join(args.dataf, f) for f in train_df['File_name_B']]
     train_labels = train_df['Age_B'].to_numpy()
-    train_data = train_df[['MMSE_B', 'Sex', 'Education']]
+    train_data = train_df['Sex']
     train_data.reset_index(inplace=True, drop=True)
 
     train_files2 = [os.path.join(args.dataf, f) for f in train_df['File_name_F']]
     train_labels2 = train_df['Age_F'].to_numpy()
-    train_data2 = train_df[['MMSE_F', 'Sex', 'Education']]
+    train_data2 = train_df['Sex']
     train_data2.reset_index(inplace=True, drop=True)
 
     val_files = [os.path.join(args.dataf, f) for f in val_df['File_name_B']]
     val_labels = val_df['Age_B'].to_numpy()
-    val_data = val_df[['MMSE_B', 'Sex', 'Education']]
+    val_data = val_df['Sex']
     val_data.reset_index(inplace=True, drop=True)
 
     val_files2 = [os.path.join(args.dataf, f) for f in val_df['File_name_F']]
     val_labels2 = val_df['Age_F'].to_numpy()
-    val_data2 = val_df[['MMSE_F', 'Sex', 'Education']]
+    val_data2 = val_df['Sex']
     val_data2.reset_index(inplace=True, drop=True)
 
     # transform = MRI3DTransform(target_size=(137, 113), depth=4)
-    transform = CropTransform(crop_size=(4, 106, 86))
+    transform = CropTransform(crop_size=args.crop_size)
 
     train_dset = ImageDataset(train_files, transform=transform, labels=train_labels, reader='NibabelReader')
     train_data_dset = Dataset(data=list(range(len(train_data))), transform=RowExtractor(train_data))
@@ -220,11 +223,11 @@ def main():
 
         checkpoint_callback = ModelCheckpoint(
             monitor='train_loss',
-            every_n_epochs=20, # Save ckpt every 20 epochs
+            every_n_epochs=50, # Save ckpt every 20 epochs
             dirpath=ckpt_folder,
             filename='model-{epoch:03d}-{train_loss:.2f}',
-            save_top_k=30,
-            save_last=True,
+            save_top_k=10,
+            save_last=False,
             mode='min',
         )
         callbacks = [checkpoint_callback]
@@ -234,7 +237,6 @@ def main():
         settings['num_validation_samples'] = len(val_loader)
         settings['dataset_file'] = args.dataset
         settings['data_type'] = args.data_type
-        # settings['input_shape'] = (128, 128)
         init_module = importlib.import_module(
             'models.{}'.format(settings['module_name'].lower()))
         model, clbk = init_module.init(args, settings)
@@ -246,11 +248,18 @@ def main():
 
         tb_logger = pl_loggers.TensorBoardLogger(os.path.join(wd, 'logs'), name=args.name)
 
+        # wandb logger
+        if args.wandb:
+            wandb_logger = WandbLogger(name=args.name, project='CardiacAging')
+            wandb_logger.log_hyperparams(settings)
+            wandb_logger.watch(model, log='all')
+            loggers = [wandb_logger]
+
         # Drop comet logger when testing
-        loggers = [tb_logger]
+        loggers.append(tb_logger)
         if args.iters is not None:
             if args.iters <= 10:
-                loggers = [tb_logger]
+                loggers.append(tb_logger)
 
         trainer = pl.Trainer(
             deterministic=True,
@@ -285,7 +294,8 @@ def main():
             )))[-1]
         print('Found model "{}"'.format(ckpt_model))
         hpms_file = list(glob.iglob(
-            os.path.join(wd, 'logs', args.name, '*', 'hparams.yaml')))[-1]
+            # os.path.join(wd, 'logs', args.name, '*', 'hparams.yaml')))[-1]
+            os.path.join(wd, 'logs', 'default', '*', 'hparams.yaml')))[-1]
         print('hparams file "{}"'.format(hpms_file))
 
         if settings['task_type'] == 'regression':
@@ -313,7 +323,34 @@ def main():
                 results_folder=settings['results_folder'])
 
         # Data loading code
-        test_loaders, _ = data_loader(args, settings, split_data=False)
+        test_files = [os.path.join(args.dataf, f) for f in test_df['File_name_B']]
+        test_labels = test_df['Age_B'].to_numpy()
+        test_data = test_df['Sex']
+        test_data.reset_index(inplace=True, drop=True)
+
+        test_files2 = [os.path.join(args.dataf, f) for f in test_df['File_name_F']]
+        test_labels2 = test_df['Age_F'].to_numpy()
+        test_data2 = test_df['Sex']
+        test_data2.reset_index(inplace=True, drop=True)
+
+        transform = CropTransform(crop_size=args.crop_size)
+
+        test_dset = ImageDataset(test_files, transform=transform, labels=test_labels, reader='NibabelReader')
+        test_data_dset = Dataset(data=list(range(len(test_data))), transform=RowExtractor(test_data))
+        test_dset = ZipDataset([test_dset, test_data_dset])
+
+        test_dset2 = ImageDataset(test_files2, transform=transform, labels=test_labels2, reader='NibabelReader')
+        test_data_dset2 = Dataset(data=list(range(len(test_data2))), transform=RowExtractor(test_data2))
+        test_dset2 = ZipDataset([test_dset2, test_data_dset2])
+
+        test_loader = torch.utils.data.DataLoader(test_dset, batch_size=args.batch_size,
+        shuffle=False, num_workers=args.workers)
+        test_loader2 = torch.utils.data.DataLoader(test_dset2, batch_size=args.batch_size,
+        shuffle=False, num_workers=args.workers)
+        
+        test_loaders = AlignedPairedData(test_loader, test_loader2, False)
+
+        # test_loaders, _ = data_loader(args, settings, split_data=False)
 
         # Test model
         os.makedirs(

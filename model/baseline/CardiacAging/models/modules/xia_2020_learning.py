@@ -184,7 +184,7 @@ class TransformerXia(nn.Module):
         self.OF = self.args['OF']
         self.latent_dim = self.args['latent_dim']
         self.num_classes = self.args['num_classes']
-        self.image_size = [4,106,86]
+        self.image_size = [86,106,86]
 
         if self.args['encoding'] == 'positive':
             self.encoding_operation = self._vec_to_enc_pve
@@ -203,7 +203,7 @@ class TransformerXia(nn.Module):
             nn.ReLU(inplace=True),
             nn.Flatten(),
             # nn.Linear(self.image_size[0] * self.image_size[1] * self.image_size[2] * self.OF, self.latent_dim),
-            nn.Linear(145856, self.latent_dim),
+            nn.Linear(86*106*86*4, self.latent_dim),
             nn.Sigmoid(),
             nn.BatchNorm1d(self.latent_dim)
         )
