@@ -1,7 +1,5 @@
 import argparse
 
-################### VQVAE Configuration ###################
-
 def get_run_parser():
     parser = argparse.ArgumentParser()
 
@@ -28,7 +26,7 @@ def get_run_parser():
     # Train Arguments
     parser.add_argument('--batch_size', type=int, default=16,
                         help='Batch size')
-    parser.add_argument('--epochs', type=int, default=1000,
+    parser.add_argument('--epochs', type=int, default=500,
                         help='Number of epochs')
     parser.add_argument('--gen_lr', type=float, default=2e-4,
                         help='Generator Learning rate')
