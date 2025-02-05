@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, DistributedSampler
 import torch.distributed as dist
+import torchio as tio
 
 from monai.config import print_config
 from monai.networks.layers import Act
@@ -16,14 +17,15 @@ from monai.utils import set_determinism
 
 from tqdm import tqdm
 import wandb
+import gc
 
 from MONAI.generative.losses import PatchAdversarialLoss, PerceptualLoss
 from MONAI.generative.networks.nets import VQVAE, PatchDiscriminator
 
 from script.utils import init_wandb
-from script.configure.config import VQVAE_get_run_parser
+from script.configure.VQGANconfig import get_run_parser
 
-from dataloader.AEDataset import MRIDataset
+from data.CrossDataset import CrossMRIDataset
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -49,12 +51,20 @@ def main(config):
         init_wandb(config)
 
     #######################################################################################
+    if config.use_transform:
+        transform = tio.Compose([
+            tio.RandomElasticDeformation(num_control_points=5, max_displacement=5, p=0.5)
+            tio.RandomAffine(scales=(0.90, 1.1), p=0.5),
+            tio.RandomAffine(degrees=(0, 10), p=0.5),
+            tio.RandomAffine(translation=(5, 5, 5), p=0.5),
+            ])
+    else:
+        transform = None
 
-    TrainDataset = MRIDataset(config.data_path, config, _type='train')
-    ValDataset = MRIDataset(config.data_path, config, _type='val')
+    TrainDataset = CrossMRIDataset(config.data_path, config, _type='train', transform)
+    ValDataset = CrossMRIDataset(config.data_path, config, _type='val', transform)
 
     train_sampler = DistributedSampler(TrainDataset, num_replicas=world_size, rank=rank)
-    # val_sampler = DistributedSampler(ValDataset, num_replicas=world_size, rank=rank)
 
     train_loader = DataLoader(
         TrainDataset,
@@ -68,10 +78,7 @@ def main(config):
         batch_size=config.batch_size,
         num_workers=config.num_workers,
         pin_memory=True,
-    #    sampler=val_sampler
     )
-
-
     #######################################################################################
 
     model = VQVAE(
@@ -79,7 +86,7 @@ def main(config):
         in_channels=1,
         out_channels=1,
         num_channels=config.num_channels,
-        num_res_channels=config.num_channels,
+        num_res_channels=config.num_res_channels,
         num_res_layers=config.num_res_blocks,
         commitment_cost = config.commitment_cost,
         downsample_parameters=config.downsample_param, 
@@ -91,11 +98,10 @@ def main(config):
     model.to(device)
 
     discriminator = PatchDiscriminator(
+        in_channels=1,
         spatial_dims=3,
         num_layers_d=3,
-        num_channels=64,
-        in_channels=1,
-        out_channels=1,
+        num_channels=32,
         kernel_size=4,
         activation=(Act.LEAKYRELU, {"negative_slope": 0.2, "inplace":False}),
         norm="BATCH",
@@ -103,21 +109,25 @@ def main(config):
     ).to(device)
     
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    discriminator = torch.nn.SyncBatchNorm.convert_sync_batchnorm(discriminator)
-    
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank, )
+    
+    discriminator = torch.nn.SyncBatchNorm.convert_sync_batchnorm(discriminator)
     discriminator = torch.nn.parallel.DistributedDataParallel(discriminator, device_ids=[local_rank], output_device=local_rank,)
+    
     perceptual_loss = PerceptualLoss(spatial_dims=3, 
-                                        network_type="medicalnet_resnet10_23datasets", 
-                                        is_fake_3d=False).to(device)
+                                     network_type=config.perceptual_model, 
+                                     is_fake_3d=True).to(device)
+    
     adv_loss = PatchAdversarialLoss(criterion="least_squares")
 
     optimizer_g = torch.optim.Adam(model.parameters(), lr=config.gen_lr)
     optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=config.disc_lr)
 
-    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optimizer_g, gamma=0.995)
-    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optimizer_d, gamma=0.995)
+    scheduler_g = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30, eta_min=0)
+    scheduler_d = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50, eta_min=0)
 
+    best_val_recon_loss = np.inf
+    
     for epoch in range(config.epochs):
         
         train_sampler.set_epoch(epoch)
@@ -199,7 +209,6 @@ def main(config):
                         }
                     )
 
-        
         scheduler_g.step()
 
         if epoch+1 > config.autoencoder_warm_up_n_epochs:
@@ -283,20 +292,26 @@ def main(config):
                     "Val-quantLoss": val_quant_loss,
                 })
 
-            if rank == 0:
+            if rank == 0 and (val_loss < best_val_recon_loss):
+                best_val_recon_loss = val_loss
+                cpu_model = model.module.cpu()
                 torch.save(
                     {
-                        'encoder': model.module.state_dict(),
-                        'discriminator': discriminator.module.state_dict(),
+                        'encoder': cpu_model.state_dict(),
+                        # 'discriminator': discriminator.module.state_dict(),
+                        'config': config
                     },
-                    os.path.join(config.save_path, f"best_{config.train_model}_model_ddp_dim{config.latent_channels}_ep{epoch+1}.pth"),
+                    os.path.join(config.save_path, f"best_{config.train_model}_model_dim{config.latent_channels}_ep{epoch+1}.pth"),
                 )
+                del cpu_model
+            gc.collect()
+            torch.cuda.empty_cache()
 
     dist.destroy_process_group()
 
 
 if __name__ == '__main__':
-    parser = VQVAE_get_run_parser()
+    parser = get_run_parser()
     config = parser.parse_args()
     print(config)
     main(config)
