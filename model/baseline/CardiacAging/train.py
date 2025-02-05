@@ -254,13 +254,8 @@ def main():
             wandb_logger.log_hyperparams(settings)
             wandb_logger.watch(model, log='all')
             loggers = [wandb_logger]
-
-        # wandb logger
-        if args.wandb:
-            wandb_logger = WandbLogger(name=args.name, project='CardiacAging')
-            wandb_logger.log_hyperparams(settings)
-            wandb_logger.watch(model, log='all')
-            loggers = [wandb_logger]
+        else:
+            loggers = []
 
         # Drop comet logger when testing
         loggers.append(tb_logger)
@@ -275,6 +270,7 @@ def main():
             gpus=[*gpus], # GPU id to use (can be [1,3] [ids 1 and 3] or [-1] [all])
             max_steps=args.iters, # default is None (not limited)
             logger=loggers,
+            save_last=True,
             accumulate_grad_batches=settings['accumulated_grad_batches'],
             callbacks=callbacks)
 
