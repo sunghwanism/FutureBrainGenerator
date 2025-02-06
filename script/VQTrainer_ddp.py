@@ -34,7 +34,7 @@ warnings.filterwarnings("ignore")
 def main(config):
     
     print_config()
-
+    
     dist.init_process_group(backend='nccl', init_method='env://')
     local_rank = int(os.environ["LOCAL_RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
@@ -52,17 +52,22 @@ def main(config):
 
     #######################################################################################
     if config.use_transform:
-        transform = tio.Compose([
-            tio.RandomElasticDeformation(num_control_points=5, max_displacement=5, p=0.5)
+        train_transform = tio.Compose([
+            tio.RandomElasticDeformation(num_control_points=5, max_displacement=5, p=0.3),
             tio.RandomAffine(scales=(0.90, 1.1), p=0.5),
             tio.RandomAffine(degrees=(0, 10), p=0.5),
             tio.RandomAffine(translation=(5, 5, 5), p=0.5),
+            tio.RescaleIntensity(out_min_max=(0, 1)),
             ])
+        val_transform = tio.Compose([
+            tio.RescaleIntensity(out_min_max=(0, 1)),])
     else:
-        transform = None
-
-    TrainDataset = CrossMRIDataset(config.data_path, config, _type='train', transform)
-    ValDataset = CrossMRIDataset(config.data_path, config, _type='val', transform)
+        train_transform = None
+        val_transform = None
+    #######################################################################################
+    
+    TrainDataset = CrossMRIDataset(config, _type='train', Transform=train_transform)
+    ValDataset = CrossMRIDataset(config, _type='val', Transform=val_transform)
 
     train_sampler = DistributedSampler(TrainDataset, num_replicas=world_size, rank=rank)
 
@@ -116,15 +121,15 @@ def main(config):
     
     perceptual_loss = PerceptualLoss(spatial_dims=3, 
                                      network_type=config.perceptual_model, 
-                                     is_fake_3d=True).to(device)
+                                     is_fake_3d=False).to(device)
     
     adv_loss = PatchAdversarialLoss(criterion="least_squares")
 
     optimizer_g = torch.optim.Adam(model.parameters(), lr=config.gen_lr)
     optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=config.disc_lr)
 
-    scheduler_g = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30, eta_min=0)
-    scheduler_d = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50, eta_min=0)
+    scheduler_g = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_g, T_max=30, eta_min=0)
+    scheduler_d = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_d, T_max=50, eta_min=0)
 
     best_val_recon_loss = np.inf
     
@@ -230,7 +235,7 @@ def main(config):
             disc_epoch_loss = total_loss_tensor[4].item() / len(train_loader)
 
         if rank == 0 and not config.nowandb:
-            if epoch > config.autoencoder_warm_up_n_epochs:
+            if epoch+1 > config.autoencoder_warm_up_n_epochs:
                 wandb.log({
                     "epoch": epoch+1,
                     "Train-reconLoss": epoch_loss,
@@ -292,18 +297,18 @@ def main(config):
                     "Val-quantLoss": val_quant_loss,
                 })
 
-            if rank == 0 and (val_loss < best_val_recon_loss):
-                best_val_recon_loss = val_loss
-                cpu_model = model.module.cpu()
+            if rank == 0:
+                cpu_state_dict = {key: value.cpu() for key, value in model.module.state_dict().items()}
+
                 torch.save(
                     {
-                        'encoder': cpu_model.state_dict(),
+                        'encoder': cpu_state_dict,
                         # 'discriminator': discriminator.module.state_dict(),
                         'config': config
                     },
-                    os.path.join(config.save_path, f"best_{config.train_model}_model_dim{config.latent_channels}_ep{epoch+1}.pth"),
+                    os.path.join(config.save_path, f"best_{config.train_model}_model_dim{config.latent_channels}_reconloss{round(val_loss,3)}_ep{epoch+1}.pth"),
                 )
-                del cpu_model
+            
             gc.collect()
             torch.cuda.empty_cache()
 
