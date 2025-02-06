@@ -11,9 +11,9 @@ class CrossMRIDataset(Dataset):
     def __init__(self, config, _type='train', Transform=None): # train, val
         self.imgpath = os.path.join(config.data_path, 'down_img_1.7mm')
         self.config = config
-        df = pd.read_csv(os.path.join(config.data_path, 'cross_old_subj_phenotype_splited.csv'))
+        df = pd.read_csv(os.path.join(config.data_path, 'cross_old_subj_phenotype_splited_v3.csv'))
         self.subj_info = df[df['mode']==_type].copy()
-        self.subj_files = subj_info['File name'].to_list()
+        self.subj_files = self.subj_info['File name'].to_list()
         self.Transform = Transform
         
         del df
