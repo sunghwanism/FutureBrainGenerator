@@ -4,7 +4,7 @@ import argparse
 
 ################### LDMCf Configuration ###################
 
-def LDMCf_get_run_parser():
+def get_run_parser():
     parser = argparse.ArgumentParser()
 
     ####################### BASE Configuration #######################
@@ -13,8 +13,14 @@ def LDMCf_get_run_parser():
                         help='Random seed')
     
     # Model
+    parser.add_argument('--enc_model', type=str,
+                        default='best_vqvae_model_dim16_reconloss0.016_ep70.pth',
+                        help='Encoder File name')
     parser.add_argument('--train_model', type=str, default='LDM',
                         help='Which model to run')
+    
+    # BASE
+    parser.add_argument('--base_path', type=str, default=f'/NFS/FutureBrainGen',)
     
     # Data
     parser.add_argument('--data_path', type=str, default=f'/NFS/FutureBrainGen/data/long',

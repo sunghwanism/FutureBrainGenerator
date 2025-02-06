@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 import torch.distributed as dist
 from torch.nn import L1Loss
+import torchio as tio
 
 from monai.config import print_config
 from monai.networks.layers import Act
@@ -18,11 +19,10 @@ from monai.utils import set_determinism, first
 from tqdm import tqdm
 import wandb
 
-from script.utils import *
-from script.configure.ldmCf_config import LDMCf_get_run_parser
+from script.utils import longitudinal_load_dataloader
+from script.configure.LDMconfig import get_run_parser
 
 import warnings
-
 warnings.filterwarnings("ignore")
 
 
@@ -44,41 +44,46 @@ def main(config):
     
     if rank == 0 and not config.nowandb:
         init_wandb(config)
+        
+    #######################################################################################
+    if config.use_transform:
+        train_transform = tio.Compose([
+            tio.RandomAffine(scales=(0.90, 1.1), p=0.5),
+            tio.RandomAffine(degrees=(0, 10), p=0.5),
+            tio.RandomAffine(translation=(5, 5, 5), p=0.8),
+            tio.RescaleIntensity(out_min_max=(0, 1)),
+            ])
+        val_transform = tio.Compose([
+            tio.RescaleIntensity(out_min_max=(0, 1)),])
+    else:
+        train_transform = None
+        val_transform = None
+    #######################################################################################
 
     # Load DataLoader
     (train_loader, val_loader, 
-     train_sampler, first_batch) = load_dataloader(config, world_size, local_rank, use_val=True)
+     train_sampler, first_batch) = longitudinal_load_dataloader(config, world_size, rank)
 
     # Load VQ-VAE model
-    if config.latent_channels == 8:
-        VQVAEPATH = os.path.join(config.base_path, 'ckpt/vqvae/thunder/best_vqvae_model_ddp_dim8_ep141.pth')
-    else:
-        VQVAEPATH = os.path.join(config.base_path, 'ckpt/vqvae/comic/best_vqvae_model_ddp.pth')
+    VQVAEPATH = os.path.join(config.base_path, config.enc_model)
 
     EDmodel = load_VQVAE(config, device, VQVAEPATH)
     EDmodel.eval()
     
     # Calculate the scale factor of latent space
     with torch.no_grad():
-        z = EDmodel.encode_stage_2_inputs(first_batch['base_img'].to(device)) # To-do : Add image from dataloader
-    scale_factor = 1 # / torch.std(z)
+        z = EDmodel.encode_stage_2_inputs(first_batch['base_img'].to(device))
+    scale_factor = 1 / torch.std(z)
     
-    # first_batch["condition"][0][0] : ['Age_B', "Sex", "MMSE_B", "Education", "Interval"] for one subject
-    if config.use_baseimg:
-        cond_size = len(first_batch["condition"][0][0]) + config.latent_channels
-        
-    else:
-        cond_size = len(first_batch["condition"][0][0])
+    cond_size = len(config.condition) + config.latent_channels + 1 # 2 (Age, Sex) + baseimg latent space + interval 
     
-    unet, classifier = generate_unet(config, device, cond_size, local_rank,
-                                     use_baseimg=config.use_baseimg, use_clf=config.use_clf)
-
+    unet = generate_unet(config, device, cond_size, local_rank,)
     scheduler = generate_scheduler(config)
 
     inferer = generate_Inferer(scheduler, scale_factor, config)
     
-    optimizer_diff = torch.optim.Adam(params=unet.parameters(), lr=config.unet_lr)
-    unet_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer_diff, gamma=0.999)
+    optimizer_diff = torch.optim.AdamW(params=unet.parameters(), lr=config.unet_lr)
+    unet_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_diff, T_max=50, eta_min=0)
     
     config_dict = vars(config)
 

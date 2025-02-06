@@ -10,10 +10,11 @@ import json
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
 import torch.distributed as dist
+import gc
 
 import wandb
 
-# from dataloader.diffusionDataset import LdMCfDataset
+from data.LongDataset import LongitudinalDataset
 from MONAI.generative.networks.nets import VQVAE
 from monai.utils import first
 from MONAI.generative.inferers import LatentCfDiffusionInferer, LatentDiffusionInferer
@@ -33,40 +34,56 @@ def load_confg(config_path):
     return config
 
 
+def load_VQVAE(config, device, modelpath, wrap_ddp=False):
 
-def load_VQVAE(config, device, modelpath):
+    encoder = torch.load(modelpath, map_location=device)['encoder']
+    encoder_config = torch.load(modelpath, map_location=device)['config']
+    
     EDmodel = VQVAE(
         spatial_dims=3,
         in_channels=1,
         out_channels=1,
-        num_channels=config.num_channels,
-        num_res_channels=config.num_channels,
-        num_res_layers=config.num_res_blocks,
-        commitment_cost = config.commitment_cost,
-        downsample_parameters=config.downsample_param, 
-        upsample_parameters=config.upsample_param,
-        num_embeddings=config.num_embeddings,
-        embedding_dim=config.latent_channels,
+        num_channels=encoder_config.num_channels,
+        num_res_channels=encoder_config.num_res_channels,
+        num_res_layers=encoder_config.num_res_blocks,
+        commitment_cost = encoder_config.commitment_cost,
+        downsample_parameters=encoder_config.downsample_param, 
+        upsample_parameters=encoder_config.upsample_param,
+        num_embeddings=encoder_config.num_embeddings,
+        embedding_dim=encoder_config.latent_channels,
         ddp_sync=True,
     )
+    
     EDmodel.to(device)
 
     EDmodel = torch.nn.SyncBatchNorm.convert_sync_batchnorm(EDmodel)
-    encoder = torch.load(modelpath, map_location=device)['encoder']
     EDmodel.load_state_dict(encoder, strict=False)
+    
+    if wrap_ddp: # To-do
+        if local_rank is None:
+            raise ValueError("Need rank for fine-tuning ")
+        EDmodel = torch.nn.parallel.DistributedDataParallel(
+            EDmodel, device_ids=[local_rank], output_device=local_rank
+        )
 
-    # Freeze all the parameters of the VQ-VAE model
-    for param in EDmodel.parameters():
-        param.requires_grad = False
+    else:
+        # Freeze all the parameters of the VQ-VAE model
+        for param in EDmodel.parameters():
+            param.requires_grad = False
+            
+    del encoder, encoder_config
+    gc.collect()
+    torch.cuda.empty_cache()
 
     return EDmodel
 
-def load_dataloader(config, world_size, rank, use_val=False):
 
-    TrainDataset = LdMCfDataset(config.data_path, config, _type='static') # To-do
-    train_sampler = DistributedSampler(TrainDataset, num_replicas=world_size, rank=rank)
+def longitudinal_load_dataloader(config, world_size, rank):
+
+    TrainDataset = LongitudinalDataset(config, _type='train', Transform=train_transform)    
+    ValDataset = LongitudinalDataset(config, _type='val', Transform=train_transform)
     
-    ValDataset = LdMCfDataset(config.data_path, config, _type='converted') # To-do
+    train_sampler = DistributedSampler(TrainDataset, num_replicas=world_size, rank=rank)
 
     train_loader = DataLoader(
         TrainDataset,
@@ -79,19 +96,16 @@ def load_dataloader(config, world_size, rank, use_val=False):
 
     first_batch = first(train_loader)
     
-    if use_val:
-        val_loader = DataLoader(
-            ValDataset,
-            batch_size=config.batch_size,
-            num_workers=config.num_workers,
-            pin_memory=True,
-            shuffle=False,
-            drop_last=True,
-        )
-        return train_loader, val_loader, train_sampler, first_batch
+    val_loader = DataLoader(
+        ValDataset,
+        batch_size=config.batch_size//2,
+        num_workers=config.num_workers,
+        pin_memory=True,
+        shuffle=False,
+        drop_last=True,
+    )
     
-    else:
-        return train_loader, train_sampler, first_batch
+    return train_loader, val_loader, train_sampler, first_batch
     
 
 def merge_loss_all_rank(loss_list, device, world_size, batch_len):
@@ -106,53 +120,34 @@ def merge_loss_all_rank(loss_list, device, world_size, batch_len):
     return epoch_loss, clf_loss, total_losses
 
 
-# def generate_unet(config, device, cond_size, local_rank, use_baseimg=False, use_clf=False):
-#     if use_clf:
-#         classifier = generateClassifier(config, device, cond_size, local_rank)
-#     else:
-#         classifier = None
-        
+def generate_unet(config, device, cond_size, local_rank):
 
-#     if use_baseimg:
-#        unet = DiffusionModelClfUNet(spatial_dims=3,
-#                                     in_channels=config.latent_channels,
-#                                     out_channels=config.latent_channels,
-#                                     classifier=classifier,
-#                                     # classifier_scale=config.guidance_scale,
-#                                     num_res_blocks=config.diff_num_res_blocks,
-#                                     num_channels=config.diff_num_channels,
-#                                     attention_levels=config.diff_attention_levels,
-#                                     cross_attention_dim=cond_size+config.num_classes if use_clf else cond_size,
-#                                     with_conditioning=True,
-#                                     num_head_channels=config.diff_num_head_channels).to(device)
-       
-#     elif not use_clf and not use_baseimg:
-#         unet = DiffusionModelUNet(
-#             spatial_dims=3,
-#             in_channels=config.latent_channels,
-#             out_channels=config.latent_channels,
-#             num_res_blocks=config.diff_num_res_blocks,
-#             num_channels=config.diff_num_channels,
-#             attention_levels=config.diff_attention_levels,
-#             cross_attention_dim=cond_size,
-#             with_conditioning=True,
-#             num_head_channels=config.diff_num_head_channels,
-#         ).to(device)
+    unet = DiffusionModelUNet(
+        spatial_dims=3,
+        in_channels=config.latent_channels,
+        out_channels=config.latent_channels,
+        num_res_blocks=config.diff_num_res_blocks,
+        num_channels=config.diff_num_channels,
+        attention_levels=config.diff_attention_levels,
+        cross_attention_dim=cond_size,
+        with_conditioning=True,
+        num_head_channels=config.diff_num_head_channels,
+    ).to(device)
 
-#     unet = torch.nn.parallel.DistributedDataParallel(unet, device_ids=[local_rank], 
-#                                                      output_device=local_rank, 
-#                                                      find_unused_parameters=True if config.use_clf else False) 
+    unet = torch.nn.parallel.DistributedDataParallel(unet, device_ids=[local_rank], 
+                                                     output_device=local_rank,) 
     
-#     return unet, classifier
+    
+    return unet
 
-# def generate_Inferer(scheduler, scale_factor, config):
-#     if config.use_clf or config.use_baseimg:
-#         inferer = LatentCfDiffusionInferer(scheduler, scale_factor=scale_factor,
-#                                            use_baseimg=config.use_baseimg)
-#     else:
-#         inferer = LatentDiffusionInferer(scheduler, scale_factor=scale_factor,)
+def generate_Inferer(scheduler, scale_factor, config):
+    if config.use_clf or config.use_baseimg:
+        inferer = LatentCfDiffusionInferer(scheduler, scale_factor=scale_factor,
+                                           use_baseimg=config.use_baseimg)
+    else:
+        inferer = LatentDiffusionInferer(scheduler, scale_factor=scale_factor,)
 
-#     return inferer
+    return inferer
 
 
 # def generate_scheduler(config):
