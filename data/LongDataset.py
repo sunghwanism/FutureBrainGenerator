@@ -18,7 +18,7 @@ class LongitudinalDataset(Dataset):
         self.subj_info = df[df['mode']==_type].copy()
         self.subj_files_B = self.subj_info['File_name_B'].to_list()
         self.subj_files_F = self.subj_info['File_name_F'].to_list()
-        self.subj_condition = self.subj_info.loc[:,config.condition].to_list() # Need Debug
+        self.subj_condition = self.subj_info.loc[:,config.condition] # Sex, Age, Interval
         
         self.Transform = Transform
         
