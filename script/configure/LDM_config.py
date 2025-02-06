@@ -41,7 +41,7 @@ def LDMCf_get_run_parser():
                         help='Number of epochs')    
     parser.add_argument('--unet_lr', type=float, default=1e-4,
                         help='Generator Learning rate')
-    parser.add_argument('--condition', nargs='+', default=['Age', 'Sex', 'interval'],
+    parser.add_argument('--condition', nargs='+', default=['Age', 'Sex'],
                         help='Condition for classifier')
     
     # Diffusion Scheduler Arguments
