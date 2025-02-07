@@ -14,15 +14,15 @@ from monai.utils import ensure_tuple_rep
 from MONAI.generative.networks.nets.diffusion_model_unet import *
 # from MedViT import MediTransformer
 
-# To install xformers, use pip install xformers==0.0.16rc401
-if importlib.util.find_spec("xformers") is not None:
-    import xformers
-    import xformers.ops
+# # To install xformers, use pip install xformers==0.0.16rc401
+# if importlib.util.find_spec("xformers") is not None:
+#     import xformers
+#     import xformers.ops
 
-    has_xformers = True
-else:
-    xformers = None
-    has_xformers = False
+#     has_xformers = True
+# else:
+#     xformers = None
+#     has_xformers = False
 
 
 class LongLDMmodel(nn.Module):
