@@ -42,9 +42,9 @@ class LongitudinalDataset(Dataset):
     def __getitem__(self, idx):
         
         # Load the NIfTI file
-        base_img = nib.load(self.subj_info['File_name_B'].iloc[idx])
+        base_img = nib.load(os.path.join(self.imgpath, self.subj_info['File_name_B'].iloc[idx]+".gz"))
         base_img = base_img.get_fdata()
-        follow_img = nib.load(self.subj_info['File_name_F'].iloc[idx])
+        follow_img = nib.load(os.path.join(self.imgpath, self.subj_info['File_name_F'].iloc[idx]+".gz"))
         follow_img = follow_img.get_fdata()
 
         condition = self.subj_info.loc[idx, ['Age_B', 'Sex']].values
