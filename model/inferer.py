@@ -1,9 +1,9 @@
+from __future__ import annotations
+
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../MONAI')))
-
-from __future__ import annotations
 
 import math
 from collections.abc import Callable, Sequence
