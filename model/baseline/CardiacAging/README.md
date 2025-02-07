@@ -18,5 +18,5 @@
 - wandb
 - numpy 1.23.0
 
-### Fix MONAI to avoid error! - Optional
+### Fix MONAI to avoid error! - Optional(if error)
 monai.utilis.misc.py -> line 52 : "MAX_SEED = np.iinfo(np.uint32).max +1" to "MAX_SEED = np.iinfo(np.uint32).max - 1"

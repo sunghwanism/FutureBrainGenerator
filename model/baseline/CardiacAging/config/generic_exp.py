@@ -3,10 +3,10 @@ LATENT_DIM = 130
 
 EXPERIMENT_PARAMS = {
     # 'augment': True,  # Use data augmentation
-    'batch_size': 3,
+    'batch_size': 2,
     'beta1': 0.9,
     'beta2': 0.999,
-    'cycle_cons_weight': 0,
+    'cycle_cons_weight': 1,
     'epochs': 300,
     'gradient_penalty_weight': 10,
     'initial_filters': 32,
@@ -24,7 +24,7 @@ EXPERIMENT_PARAMS = {
     'radial_prior_weight': 0,
     'reduced': True,
     'reconstruction_weight': 10,
-    'regularization_weight': 0,
+    'regularization_weight': 1,
     'regressor_weight': 0,
     'subcat': '',
     'task_type': 'generative',
@@ -33,12 +33,12 @@ EXPERIMENT_PARAMS = {
     'view': '',
     'nonlinearity': 'relu', # new added by HK
     'warming_epochs': 20,
-    'weight_decay': 0,  # Weight decay rate
+    'weight_decay': 1e-4,  # Weight decay rate
     'discr_params': {
         'activation': 'relu',
         'latent_space': LATENT_DIM,
         'depth': 5,
-        'encoding': 'none',
+        'encoding': 'both',
         'input_shape': (86,106,86),
         'model': 'DiscriminatorXia',
         'name': 'discriminator',
@@ -49,7 +49,7 @@ EXPERIMENT_PARAMS = {
         'activation': 'relu',
         'latent_space': LATENT_DIM,
         'depth': 4,
-        'encoding': 'none',
+        'encoding': 'both',
         'input_shape': (86,106,86),
         'model': 'GeneratorXia',
         'name': 'generator',

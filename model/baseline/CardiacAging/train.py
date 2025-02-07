@@ -297,8 +297,8 @@ def main():
             )))[-1]
         print('Found model "{}"'.format(ckpt_model))
         hpms_file = list(glob.iglob(
-            # os.path.join(wd, 'logs', args.name, '*', 'hparams.yaml')))[-1]
-            os.path.join(wd, 'logs', 'default', '*', 'hparams.yaml')))[-1]
+            os.path.join(wd, 'logs', args.name, '*', 'hparams.yaml')))[-1]
+            # os.path.join(wd, 'logs', 'default', '*', 'hparams.yaml')))[-1]
         print('hparams file "{}"'.format(hpms_file))
 
         if settings['task_type'] == 'regression':

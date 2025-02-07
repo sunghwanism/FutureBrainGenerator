@@ -178,9 +178,14 @@ class GAN(pl.LightningModule):
         reg_loss = reg_loss * self.reg_weight
 
         # Generator loss
-        # g_loss = g_loss + reg_loss + cyc_loss
-        g_loss = g_loss + reg_loss + cyc_loss + map_loss
+        g_loss = g_loss + reg_loss + cyc_loss
+        # g_loss = g_loss + reg_loss + cyc_loss + map_loss
         self.log('g_loss', g_loss, on_epoch=True, prog_bar=True)
+
+        # Reconstruction loss
+        # MAE between generated image and target image
+        rec_loss = torch.mean(torch.abs(generated_imgs - y))
+        self.log('rec_loss', rec_loss, on_epoch=True, prog_bar=True)
 
         if self.log_images and self.kwargs['data_type'] != '3d':
             g_ims = generated_imgs.clip(0, 1)
@@ -309,9 +314,10 @@ class GAN(pl.LightningModule):
         tg_im, tg_lbl, *tg_data = batch['B']
 
         results_dir = self.hparams.results_folder
+        results_dir = os.path.join(results_dir, self.hparams.experiment_name)
         os.makedirs(results_dir, exist_ok=True)
-        # samples_dir = os.path.join(results_dir, 'samples')
-        # os.makedirs(samples_dir, exist_ok=True)
+        samples_dir = os.path.join(results_dir, f'samples_ep{self.hparams.epochs}')
+        os.makedirs(samples_dir, exist_ok=True)
         # numpy_dir = os.path.join(results_dir, 'numpy')
         # os.makedirs(numpy_dir, exist_ok=True)
 
@@ -347,7 +353,7 @@ class GAN(pl.LightningModule):
         _map = _map.clip(0, 1)
 
         # save images as nii files
-        filename = 'sample_{:d}_Sex-{:d}_Age-{:d}{}.nii.gz'
+        filename = 'sample{:d}_Sex-{:d}_Age-{:d}{}.nii.gz'
         filename = os.path.join(samples_dir, filename)
 
         # Original image
