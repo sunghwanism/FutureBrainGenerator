@@ -20,7 +20,7 @@ def get_run_parser():
                         help='Which model to run')
     
     # BASE
-    parser.add_argument('--base_path', type=str, default=f'/NFS/FutureBrainGen',)
+    parser.add_argument('--base_path', type=str, default=f'/NFS/FutureBrainGen/',)
     
     # Data
     parser.add_argument('--data_path', type=str, default=f'/NFS/FutureBrainGen/data/long',
@@ -36,16 +36,12 @@ def get_run_parser():
 
     ####################### LDM Configuration #######################
 
-    # Finetuning Arguments
-    parser.add_argument('--encoder_all_freeze', action='store_true',
-                        help='Freeze all encoder layers')
-    
     # Train Arguments
-    parser.add_argument('--batch_size', type=int, default=8,
+    parser.add_argument('--batch_size', type=int, default=4,
                         help='Batch size')
-    parser.add_argument('--epochs', type=int, default=10000,
+    parser.add_argument('--epochs', type=int, default=1000,
                         help='Number of epochs')    
-    parser.add_argument('--unet_lr', type=float, default=1e-4,
+    parser.add_argument('--unet_lr', type=float, default=2e-4,
                         help='Generator Learning rate')
     parser.add_argument('--condition', nargs='+', default=['Age', 'Sex'],
                         help='Condition for classifier')
@@ -53,27 +49,27 @@ def get_run_parser():
     # Diffusion Scheduler Arguments
     parser.add_argument('--scheduler', default='ddpm', # or ddim
                         help='Scheduler')
-    parser.add_argument('--schedule_type', type=str, default='scaled_linear_beta',)
+    parser.add_argument('--schedule_type', type=str, default='linear_beta',)
     parser.add_argument('--timestep', type=int, default=1000,)
     parser.add_argument('--beta_start', type=float, default=0.0015,) # 0.0015
-    parser.add_argument('--beta_end', type=float, default=0.0195,) # 0.0195 
+    parser.add_argument('--beta_end', type=float, default=0.0205,) # 0.0195 
 
     # Hyperparameters
-    parser.add_argument('--diff_num_channels', type=int, nargs='+', default=(128, 256, 512), help="List of channel sizes")
-    parser.add_argument('--diff_num_res_blocks', type=int, default=1)
-    parser.add_argument('--diff_num_head_channels', type=int, nargs='+', default=(0, 128, 256),)
-    parser.add_argument('--diff_attention_levels', type=int, nargs='+', default=(0, 1, 1),)
-
+    parser.add_argument('--diff_num_channels', type=int, nargs='+', default=(32, 64, 128, 256),
+                        help="List of channel sizes")
+    parser.add_argument('--diff_num_res_blocks', type=int, default=(1, 1, 1, 1))
+    parser.add_argument('--diff_num_head_channels', type=int, nargs='+', default=(0, 32, 64, 128),)
+    parser.add_argument('--diff_attention_levels', type=int, nargs='+', default=(0, 1, 1, 1),)
 
     # Save and Log Arguments
     parser.add_argument('--save_path', type=str, default=f'/NFS/FutureBrainGen/ckpt/LDM',
                         help='Where to save the model')
     parser.add_argument('--save_img_path', type=str, default=f'/NFS/FutureBrainGen/results/LDM/img',
                         help='Where to save the images')
-    parser.add_argument('--save_interval', type=int, default=10,
+    parser.add_argument('--save_interval', type=int, default=1,
                         help='How often to save')
     
-    parser.add_argument('--save_img_interval', type=int, default=50,
+    parser.add_argument('--save_img_interval', type=int, default=1,
                         help='How often to save images')
     parser.add_argument('--n_example_images', type=float, default=2,
                         help='Validation images')

@@ -28,14 +28,10 @@ class LongitudinalDataset(Dataset):
         self.imgpath = os.path.join(config.data_path, 'down_img_1.7mm')
         self.config = config
         df = pd.read_csv(os.path.join(config.data_path, 'long_old_HC_subj_phenotype_splited.csv'))
-        self.subj_info = df[df['mode']==_type].copy()
-        self.subj_files_B = self.subj_info['File_name_B'].to_list()
-        self.subj_files_F = self.subj_info['File_name_F'].to_list()
-        self.conditions = self.subj_info.loc[:, ['Age_B', 'Sex']].values
-        
-        self.interval = self.subj_info.loc[:, 'interval'].to_list()
-        
+        self.subj_info = df[df['mode']==_type].copy()                
         self.Transform = Transform
+
+        del df
         
     def get_subj_info(self, idx):
         return self.subj_info.iloc[idx]
@@ -46,13 +42,13 @@ class LongitudinalDataset(Dataset):
     def __getitem__(self, idx):
         
         # Load the NIfTI file
-        base_img = nib.load(self.subj_files_B[idx])
+        base_img = nib.load(self.subj_info['File_name_B'].iloc[idx])
         base_img = base_img.get_fdata()
-        follow_img = nib.load(self.subj_files_F[idx])
+        follow_img = nib.load(self.subj_info['File_name_F'].iloc[idx])
         follow_img = follow_img.get_fdata()
 
-        condition = self.conditions[idx]
-        interval = self.interval[idx]
+        condition = self.subj_info.loc[idx, ['Age_B', 'Sex']].values
+        interval = self.subj_info['interval'].iloc[idx]
         
         # Convert the numpy array to a PyTorch tensor
         base_img = torch.from_numpy(base_img).unsqueeze(0).float()
@@ -63,7 +59,7 @@ class LongitudinalDataset(Dataset):
         follow_img = crop_img(follow_img, self.config.crop_size)
         
         if self.Transform is not None:
-            follow_img = self.Transfrom(follow_img)
+            follow_img = self.Transform(follow_img)
             base_img = self.Transform(base_img)
         
         # Phenotype
@@ -72,7 +68,10 @@ class LongitudinalDataset(Dataset):
         result = {'base_img': base_img,
                   'follow_img': follow_img, 
                   'condition': condition,
-                  'interval': interval}
+                  'interval': interval,
+                  'Age_F': self.subj_info['Age_F'].iloc[idx],
+                  'Age_B': self.subj_info['Age_B'].iloc[idx],
+                  'Sex': self.subj_info['Sex'].iloc[idx]}
 
         return result
     

@@ -4,22 +4,22 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../MONAI')))
 
 import numpy as np
+import json
 
 import torch
 import torch.nn.functional as F
 
 import torch.distributed as dist
-from torch.nn import L1Loss
 import torchio as tio
+import gc
 
 from monai.config import print_config
-from monai.networks.layers import Act
-from monai.utils import set_determinism, first
+from monai.utils import set_determinism
 
 from tqdm import tqdm
 import wandb
 
-from script.utils import longitudinal_load_dataloader
+from script.utils import *
 from script.configure.LDMconfig import get_run_parser
 
 import warnings
@@ -27,8 +27,6 @@ warnings.filterwarnings("ignore")
 
 
 def main(config):
-
-    print_config()
 
     dist.init_process_group(backend='nccl', init_method='env://')
     local_rank = int(os.environ["LOCAL_RANK"])
@@ -62,7 +60,8 @@ def main(config):
 
     # Load DataLoader
     (train_loader, val_loader, 
-     train_sampler, first_batch) = longitudinal_load_dataloader(config, world_size, rank)
+     train_sampler, first_batch) = longitudinal_load_dataloader(config, world_size, rank,
+                                                                train_transform, val_transform)
 
     # Load VQ-VAE model
     VQVAEPATH = os.path.join(config.base_path, config.enc_model)
@@ -75,14 +74,15 @@ def main(config):
         z = EDmodel.encode_stage_2_inputs(first_batch['base_img'].to(device))
     scale_factor = 1 / torch.std(z)
     
-    cond_size = len(config.condition) + config.latent_channels + 1 # 2 (Age, Sex) + baseimg latent space + interval 
+    base_img_size = len(z.flatten(1))
+    latent_dim = z.shape[1]
     
-    unet = generate_unet(config, device, cond_size, local_rank,)
+    unet = generate_unet(config, device, base_img_size, latent_dim, local_rank)
     scheduler = generate_scheduler(config)
 
     inferer = generate_Inferer(scheduler, scale_factor, config)
     
-    optimizer_diff = torch.optim.AdamW(params=unet.parameters(), lr=config.unet_lr)
+    optimizer_diff = torch.optim.Adam(params=unet.parameters(), lr=config.unet_lr)
     unet_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_diff, T_max=50, eta_min=0)
     
     config_dict = vars(config)
@@ -92,16 +92,17 @@ def main(config):
         with open(configPath, 'w') as f:
             json.dump(config_dict, f, indent=4)
 
+    del first_batch
+    gc.collect()
+    torch.cuda.empty_cache()
+
     ############################################# Training Process #############################################    
     for epoch in range(config.epochs):
         
         unet.train()
-        if config.use_clf:
-            classifier.train()
-            clf_loss = 0
+        EDmodel.eval()
 
         epoch_loss = 0
-        total_losses = 0
         train_sampler.set_epoch(epoch)
 
         if rank == 0:
@@ -113,15 +114,12 @@ def main(config):
             
             base_img = batch['base_img'].to(device)
             follow_img = batch['follow_img'].to(device)
-            true_y = batch["control_B"].to(device)
             condition = batch["condition"].to(device)
             
-            if config.use_baseimg:
-                base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
-                base_img_z = base_img_z * scale_factor
-                condition = torch.cat([base_img_z, condition], dim=2)
-                
-
+            base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
+            base_img_z = base_img_z * scale_factor
+            base_img_z = base_img_z + batch['interval'].to(device)
+            
             optimizer_diff.zero_grad(set_to_none=True)
 
             noise = torch.randn_like(z).to(device)
@@ -130,58 +128,35 @@ def main(config):
                                       (base_img.shape[0],), 
                                       device=base_img.device).long()
 
-            if config.use_baseimg:
-                noise_pred, logit_pred = inferer(inputs=follow_img, autoencoder_model=EDmodel,
-                                                diffusion_model=unet, noise=noise, timesteps=timesteps,
-                                                condition=condition,
-                                                mode='crossattn', quantized=True,)
-            else:
-                noise_pred = inferer(inputs=follow_img, autoencoder_model=EDmodel,
-                                                diffusion_model=unet, noise=noise, timesteps=timesteps,
-                                                condition=condition,
-                                                mode='crossattn', quantized=True)
-            if not config.use_clf:
-                logit_pred = 0
+
+            noise_pred = inferer(inputs=follow_img, autoencoder_model=EDmodel,
+                                 diffusion_model=unet, noise=noise, timesteps=timesteps,
+                                 condition=base_img_z,
+                                 clinical_cond=condition,
+                                 mode='crossattn', quantized=True)
                 
             diff_loss = F.mse_loss(noise_pred.float(), noise.float())
-            
-            if config.use_clf:
-                pred_loss = F.cross_entropy(logit_pred, true_y)
-                total_loss = diff_loss * config.diff_weight + pred_loss * config.clf_weight
-                clf_loss += pred_loss.item()
-
-            else:
-                total_loss = diff_loss
-                clf_loss = 0
-            
-            total_loss.backward()
-            if (epoch+1) > 100:
-                torch.nn.utils.clip_grad_norm_(unet.parameters(), max_norm=0.5)
+            diff_loss.backward()
 
             optimizer_diff.step()
 
             epoch_loss += diff_loss.item()
-            total_losses += total_loss.item()
 
             if rank == 0:
                 progress_bar.set_postfix(
                     {
                         "epoch": epoch+1,
-                        "total_loss": round(total_losses / (step + 1), 4),
-                        "recon_loss": round(epoch_loss / (step + 1), 4),
-                        "clf_loss": round(clf_loss / (step + 1), 4) if config.use_clf else 0,
+                        "noise_loss": round(epoch_loss / (step + 1), 5),
                     }
                 )
         
-        epoch_loss, clf_loss, total_losses = merge_loss_all_rank([epoch_loss, clf_loss, total_losses],
-                                                                 device, world_size, len(train_loader))
-        # Log in wandb
+        epoch_loss= merge_loss_all_rank([epoch_loss], device, world_size, len(train_loader))
+
+        # Log to wandb
         if rank == 0 and not config.nowandb:
             wandb.log({
                 "epoch": epoch+1,
                 "noise_loss": epoch_loss,
-                'clf_loss': clf_loss if config.use_clf else 0,
-                'total_loss': total_losses,
                 'lr_diff': unet_lr_scheduler.optimizer.param_groups[0]['lr'],
             })
 
@@ -190,66 +165,83 @@ def main(config):
 
             save_dict = {
                 "epoch": epoch+1,
-                "unet_state_dict": unet.state_dict(),
-                'classifier_state_dict': classifier.state_dict() if config.use_clf else None,
-                'encoder_state_dict': EDmodel.state_dict(),
+                "unet_state_dict": get_state_dict(unet),
                 "optimizer_diff": optimizer_diff.state_dict(),
                 "scheduler": unet_lr_scheduler.state_dict(),
             }
 
-            if config.use_clf:
-                torch.save(save_dict, os.path.join(config.save_path, f"diffusion_ddp_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
-            else:
-                torch.save(save_dict, os.path.join(config.save_path, f"diffusion_ddp_noclf_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
-                
+            torch.save(save_dict, os.path.join(config.save_path, f"{config.train_model}_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
             print(f"Model saved at epoch {epoch+1} with noise loss {epoch_loss}")
         
         unet_lr_scheduler.step()
 
         if rank == 0 and (((epoch+1) % config.save_img_interval == 0) or (epoch+1) == 1):
+            print("Generating Synthetic Images using Validation Dataset...")
+
             unet.eval()
             EDmodel.eval()
+            val_loss = 0
 
-            if config.use_clf:
-                classifier.eval()
+            with torch.no_grad():
+                for idx, batch in enumerate(val_loader):
+                    base_img = batch['base_img'].to(device)
+                    follow_img = batch['follow_img'].to(device)
+                    condition = batch["condition"].to(device)
+                    
+                    base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
+                    base_img_z = base_img_z * scale_factor
+                    base_img_z = base_img_z + batch['interval'].to(device)
 
-            noise = torch.randn_like(z).to(device)
-            scheduler.set_timesteps(num_inference_steps=config.timestep)
+                    noise = torch.randn_like(z).to(device)
+                    scheduler.set_timesteps(num_inference_steps=config.timestep)
 
-            synthetic_images, intermediate_img = inferer.sample(input_noise=noise, 
-                                              autoencoder_model=EDmodel, 
-                                              diffusion_model=unet,
-                                              conditioning=condition,
-                                              mode='crossattn',
-                                              save_intermediates=True,
-                                              verbose=True,
-                                              scheduler=scheduler)
-            
-            intermediate_img = [img.detach().cpu().numpy() for img in intermediate_img]
-            intermediate_img = np.array(intermediate_img)
+                    synthetic_images, intermediate_img = inferer.sample(input_noise=noise, 
+                                                                        autoencoder_model=EDmodel,
+                                                                        diffusion_model=unet,
+                                                                        conditioning=base_img_z,
+                                                                        clinical_cond=condition,
+                                                                        mode='crossattn',
+                                                                        save_intermediates=True if idx == 0 else False,
+                                                                        intermediate_steps=200,
+                                                                        verbose=True,
+                                                                        scheduler=scheduler)
 
-            save_img_dict = {
-                "epoch": epoch+1,
-                'follow_img': follow_img[:config.n_example_images],
-                "base_img": base_img[:config.n_example_images],
-                "synthetic_images": synthetic_images[:config.n_example_images],
-                'intermediate_img': intermediate_img[:, :config.n_example_images],
-                'condition': condition[:config.n_example_images],
-                'control_B': true_y[:config.n_example_images],
-                'control_F': batch['control_F'][:config.n_example_images],
-                'Age_F': batch['Age_F'][:config.n_example_images],
-                'Age_B': batch['Age_B'][:config.n_example_images],
-            }
+                    recons_loss = F.l1_loss(synthetic_images.float(), follow_img.float())
+                    val_loss += recons_loss.item()
 
-            if config.use_clf:
-                torch.save(save_img_dict, os.path.join(config.save_img_path, f"diffusion_image_ddp_clf_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
-            else:
-                torch.save(save_img_dict, os.path.join(config.save_img_path, f"diffusion_image_ddp_noclf_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
+                    if idx == 0:
+                        intermediate_img = [img.detach().cpu().numpy() for img in intermediate_img]
+                        intermediate_img = np.array(intermediate_img)
 
-            del save_img_dict, intermediate_img, synthetic_images
+                        save_img_dict = {
+                            "epoch": epoch+1,
+                            'follow_img': follow_img[:config.n_example_images],
+                            "base_img": base_img[:config.n_example_images],
+                            "synthetic_images": synthetic_images[:config.n_example_images],
+                            'intermediate_img': intermediate_img[:, :config.n_example_images],
+                            'condition': condition[:config.n_example_images],
+                            'Sex': batch['Sex'][:config.n_example_images],
+                            'Age_F': batch['Age_F'][:config.n_example_images],
+                            'Age_B': batch['Age_B'][:config.n_example_images],
+                        }
+
+                    torch.save(save_img_dict, os.path.join(config.save_img_path, f"{config.train_model}_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
+                
+                epoch_val_loss = merge_loss_all_rank([val_loss], device, world_size, len(val_loader))
+                
+                # Log to wandb
+                if rank == 0 and not config.nowandb:
+                    wandb.log({
+                        "epoch": epoch+1,
+                        "val_recon_loss": epoch_val_loss,
+                    })
+
+            del save_img_dict, intermediate_img, synthetic_images, base_img, follow_img, base_img_z, noise, condition
+            gc.collect()
+            torch.cuda.empty_cache()
             
 if __name__ == "__main__":
-    parser = LDMCf_get_run_parser()
+    parser = get_run_parser()
     config = parser.parse_args()
     print(config)
     main(config)

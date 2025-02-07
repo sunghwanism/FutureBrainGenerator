@@ -10,12 +10,14 @@ import torch
 import torch.nn as nn
 
 from monai.networks.blocks import Convolution, MLPBlock
+from monai.networks.nets import DiffusionModelUNet
 from monai.networks.layers.factories import Pool
 from monai.utils import ensure_tuple_rep
 
-from MONAI.generative.networks.nets.diffusion_model_unet import ResnetBlock, Upsample, Downsample, CrossAttnDownBlock, CrossAttnMidBlock, CrossAttnUpBlock, zero_module, get_timestep_embedding
-from MedViT import MediTransformer
+from MONAI.generative.networks.nets.diffusion_model_unet import *
+# from MedViT import MediTransformer
 
+# To install xformers, use pip install xformers==0.0.16rc401
 if importlib.util.find_spec("xformers") is not None:
     import xformers
     import xformers.ops
@@ -26,241 +28,35 @@ else:
     has_xformers = False
 
 
-class MedCrossAttnDownBlock(CrossAttnDownBlock):
-
-    def __init__(self, img_size,
-                spatial_dims: int,
-                in_channels: int,
-                out_channels: int,
-                temb_channels: int,
-                num_res_blocks: int = 1,
-                norm_num_groups: int = 32,
-                norm_eps: float = 1e-6,
-                add_downsample: bool = True,
-                resblock_updown: bool = False,
-                downsample_padding: int = 1,
-                num_head_channels: int = 1,
-                transformer_num_layers: int = 1,
-                cross_attention_dim: int | None = None,
-                upcast_attention: bool = False,
-                use_flash_attention: bool = False,
-                dropout_cattn: float = 0.0,
-                emb_size=1024, patch_size=(6,9,6)):
-        super(MedCrossAttnDownBlock, self).__init__()
-
-        resnets = []
-        attentions = []
-
-        for i in range(num_res_blocks):
-            in_channels = in_channels if i == 0 else out_channels
-            resnets.append(
-                ResnetBlock(
-                    spatial_dims=spatial_dims,
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    temb_channels=temb_channels,
-                    norm_num_groups=norm_num_groups,
-                    norm_eps=norm_eps,
-                )
-            )
-
-            attentions.append(
-                MediTransformer(img_size=img_size, emb_size=emb_size, patch_size=patch_size,
-                                spatial_dims=spatial_dims,
-                                in_channels=out_channels,
-                                num_attention_heads=out_channels // num_head_channels,
-                                num_head_channels=num_head_channels,
-                                num_layers=transformer_num_layers,
-                                norm_num_groups=norm_num_groups,
-                                norm_eps=norm_eps,
-                                cross_attention_dim=cross_attention_dim,
-                                upcast_attention=upcast_attention,
-                                use_flash_attention=use_flash_attention,
-                                dropout=dropout_cattn,
-                )
-            )
-
-        self.attentions = nn.ModuleList(attentions)
-        self.resnets = nn.ModuleList(resnets)
-
-        if self.add_downsample:
-            if self.resblock_updown:
-                self.downsampler = ResnetBlock(
-                    spatial_dims=spatial_dims,
-                    in_channels=out_channels,
-                    out_channels=out_channels,
-                    temb_channels=temb_channels,
-                    norm_num_groups=norm_num_groups,
-                    norm_eps=norm_eps,
-                    down=True,
-                )
-            else:
-                self.downsampler = Downsample(
-                    spatial_dims=spatial_dims,
-                    num_channels=out_channels,
-                    use_conv=True,
-                    out_channels=out_channels,
-                    padding=downsample_padding,
-                )
-        else:
-            self.downsampler = None
-
-
-class MedCrossAttnMidBlock(CrossAttnMidBlock):
-
-    def __init__(self, img_size,
-                 spatial_dims: int,
-                 in_channels: int,
-                 temb_channels: int,
-                 norm_num_groups: int = 32,
-                 norm_eps: float = 1e-6,
-                 num_head_channels: int = 1,
-                 transformer_num_layers: int = 1,
-                 cross_attention_dim: int | None = None,
-                 upcast_attention: bool = False,
-                 use_flash_attention: bool = False,
-                 dropout_cattn: float = 0.0,
-                 emb_size=1024, patch_size=(6,9,6),):
-        super(MedCrossAttnMidBlock, self).__init__()
-
-        self.resnet_1 = ResnetBlock(
-                spatial_dims=spatial_dims,
-                in_channels=in_channels,
-                out_channels=in_channels,
-                temb_channels=temb_channels,
-                norm_num_groups=norm_num_groups,
-                norm_eps=norm_eps,
-            )
-
-
-        self.attention = MediTransformer(img_size=img_size, emb_size=emb_size, patch_size=patch_size,
-                                        spatial_dims=spatial_dims,
-                                        in_channels=in_channels,
-                                        num_attention_heads=in_channels // num_head_channels,
-                                        num_head_channels=num_head_channels,
-                                        num_layers=transformer_num_layers,
-                                        norm_num_groups=norm_num_groups,
-                                        norm_eps=norm_eps,
-                                        cross_attention_dim=cross_attention_dim,
-                                        upcast_attention=upcast_attention,
-                                        use_flash_attention=use_flash_attention,
-                                        dropout=dropout_cattn,
-        )
-
-        self.resnet_2 = ResnetBlock(
-            spatial_dims=spatial_dims,
-            in_channels=in_channels,
-            out_channels=in_channels,
-            temb_channels=temb_channels,
-            norm_num_groups=norm_num_groups,
-            norm_eps=norm_eps,
-        )
-
-
-
-class MedCrossAttnUpBlock(CrossAttnUpBlock):
+class LongLDMmodel(nn.Module):
     """
-    Unet's up block containing resnet, upsamplers, and self-attention blocks.
+    Unet network with timestep embedding and attention mechanisms for conditioning based on
+    Rombach et al. "High-Resolution Image Synthesis with Latent Diffusion Models" https://arxiv.org/abs/2112.10752
+    and Pinaya et al. "Brain Imaging Generation with Latent Diffusion Models" https://arxiv.org/abs/2209.07162
 
     Args:
-        spatial_dims: The number of spatial dimensions.
+        spatial_dims: number of spatial dimensions.
         in_channels: number of input channels.
-        prev_output_channel: number of channels from residual connection.
         out_channels: number of output channels.
-        temb_channels: number of timestep embedding channels.
-        num_res_blocks: number of residual blocks.
-        norm_num_groups: number of groups for the group normalization.
-        norm_eps: epsilon for the group normalization.
-        add_upsample: if True add downsample block.
-        resblock_updown: if True use residual blocks for upsampling.
+        num_res_blocks: number of residual blocks (see ResnetBlock) per level.
+        num_channels: tuple of block output channels.
+        attention_levels: list of levels to add attention.
+        norm_num_groups: number of groups for the normalization.
+        norm_eps: epsilon for the normalization.
+        resblock_updown: if True use residual blocks for up/downsampling.
         num_head_channels: number of channels in each attention head.
+        with_conditioning: if True add spatial transformers to perform conditioning.
+        transformer_num_layers: number of layers of Transformer blocks to use.
+        cross_attention_dim: number of context dimensions to use.
+        clinical_condition: if specified (as an int), then this model will be class-conditional with `num_class_embeds`
+        classes.
+        upcast_attention: if True, upcast attention operations to full precision.
         use_flash_attention: if True, use flash attention for a memory efficient attention mechanism.
+        dropout_cattn: if different from zero, this will be the dropout value for the cross-attention layers
     """
 
     def __init__(
         self,
-        img_size,
-        spatial_dims: int,
-        in_channels: int,
-        prev_output_channel: int,
-        out_channels: int,
-        temb_channels: int,
-        num_res_blocks: int = 1,
-        norm_num_groups: int = 32,
-        norm_eps: float = 1e-6,
-        add_upsample: bool = True,
-        resblock_updown: bool = False,
-        num_head_channels: int = 1,
-        transformer_num_layers: int = 1,
-        cross_attention_dim: int | None = None,
-        upcast_attention: bool = False,
-        use_flash_attention: bool = False,
-        dropout_cattn: float = 0.0,
-        emb_size=1024, patch_size=(6,9,6),
-    ) -> None:
-        super().__init__()
-        self.resblock_updown = resblock_updown
-
-        resnets = []
-        attentions = []
-
-        for i in range(num_res_blocks):
-            res_skip_channels = in_channels if (i == num_res_blocks - 1) else out_channels
-            resnet_in_channels = prev_output_channel if i == 0 else out_channels
-
-            resnets.append(
-                ResnetBlock(
-                    spatial_dims=spatial_dims,
-                    in_channels=resnet_in_channels + res_skip_channels,
-                    out_channels=out_channels,
-                    temb_channels=temb_channels,
-                    norm_num_groups=norm_num_groups,
-                    norm_eps=norm_eps,
-                )
-            )
-            attentions.append(
-                MediTransformer(img_size=img_size, emb_size=emb_size, patch_size=patch_size,
-                    spatial_dims=spatial_dims,
-                    in_channels=out_channels,
-                    num_attention_heads=out_channels // num_head_channels,
-                    num_head_channels=num_head_channels,
-                    norm_num_groups=norm_num_groups,
-                    norm_eps=norm_eps,
-                    num_layers=transformer_num_layers,
-                    cross_attention_dim=cross_attention_dim,
-                    upcast_attention=upcast_attention,
-                    use_flash_attention=use_flash_attention,
-                    dropout=dropout_cattn,
-                )
-            )
-
-        self.attentions = nn.ModuleList(attentions)
-        self.resnets = nn.ModuleList(resnets)
-
-        if add_upsample:
-            if resblock_updown:
-                self.upsampler = ResnetBlock(
-                    spatial_dims=spatial_dims,
-                    in_channels=out_channels,
-                    out_channels=out_channels,
-                    temb_channels=temb_channels,
-                    norm_num_groups=norm_num_groups,
-                    norm_eps=norm_eps,
-                    up=True,
-                )
-            else:
-                self.upsampler = Upsample(
-                    spatial_dims=spatial_dims, num_channels=out_channels, use_conv=True, out_channels=out_channels
-                )
-        else:
-            self.upsampler = None
-
-
-class MedDiffUNet(nn.Module):
-
-    def __init__(
-        self,
-        img_size: Sequence[int],
         spatial_dims: int,
         in_channels: int,
         out_channels: int,
@@ -274,12 +70,10 @@ class MedDiffUNet(nn.Module):
         with_conditioning: bool = False,
         transformer_num_layers: int = 1,
         cross_attention_dim: int | None = None,
-        num_class_embeds: int | None = None,
+        clinical_condition: Sequence[str] | None = None,
         upcast_attention: bool = False,
         use_flash_attention: bool = False,
         dropout_cattn: float = 0.0,
-        emb_size: int = 1024,
-        patch_size: Sequence[int] = (6,9,6),
     ) -> None:
         super().__init__()
         if with_conditioning is True and cross_attention_dim is None:
@@ -335,10 +129,6 @@ class MedDiffUNet(nn.Module):
         self.num_head_channels = num_head_channels
         self.with_conditioning = with_conditioning
 
-        self.emb_size = emb_size
-        self.patch_size = patch_size
-        self.img_size = img_size
-
         # input
         self.conv_in = Convolution(
             spatial_dims=spatial_dims,
@@ -356,10 +146,17 @@ class MedDiffUNet(nn.Module):
             nn.Linear(num_channels[0], time_embed_dim), nn.SiLU(), nn.Linear(time_embed_dim, time_embed_dim)
         )
 
-        # class embedding
-        self.num_class_embeds = num_class_embeds
-        if num_class_embeds is not None:
-            self.class_embedding = nn.Embedding(num_class_embeds, time_embed_dim)
+        # clinical embedding
+        self.clinical_condition = clinical_condition
+        if clinical_condition is not None:
+            self.condition_emb_dict = {}
+            for c_cond in self.clinical_condition:
+                if c_cond == 'Sex':
+                    self.condition_emb_dict[c_cond] = nn.Embedding(2, time_embed_dim)
+                elif c_cond == 'Age':
+                    self.condition_emb_dict[c_cond] = nn.Linear(1, time_embed_dim)
+                else:
+                    raise ValueError("Need to define the embedding for the clinical condition")
 
         # down
         self.down_blocks = nn.ModuleList([])
@@ -369,30 +166,30 @@ class MedDiffUNet(nn.Module):
             output_channel = num_channels[i]
             is_final_block = i == len(num_channels) - 1
 
-            down_block = MedCrossAttnDownBlock(
-                                                spatial_dims=spatial_dims,
-                                                in_channels=input_channel,
-                                                out_channels=output_channel,
-                                                temb_channels=time_embed_dim,
-                                                num_res_blocks=num_res_blocks[i],
-                                                norm_num_groups=norm_num_groups,
-                                                norm_eps=norm_eps,
-                                                add_downsample=not is_final_block,
-                                                resblock_updown=resblock_updown,
-                                                with_attn=(attention_levels[i] and not with_conditioning),
-                                                with_cross_attn=(attention_levels[i] and with_conditioning),
-                                                num_head_channels=num_head_channels[i],
-                                                transformer_num_layers=transformer_num_layers,
-                                                cross_attention_dim=cross_attention_dim,
-                                                upcast_attention=upcast_attention,
-                                                use_flash_attention=use_flash_attention,
-                                                dropout_cattn=dropout_cattn,
-                                                img_size=img_size, emb_size=emb_size, patch_size=patch_size
-                                                )
+            down_block = get_down_block(
+                spatial_dims=spatial_dims,
+                in_channels=input_channel,
+                out_channels=output_channel,
+                temb_channels=time_embed_dim,
+                num_res_blocks=num_res_blocks[i],
+                norm_num_groups=norm_num_groups,
+                norm_eps=norm_eps,
+                add_downsample=not is_final_block,
+                resblock_updown=resblock_updown,
+                with_attn=(attention_levels[i] and not with_conditioning),
+                with_cross_attn=(attention_levels[i] and with_conditioning),
+                num_head_channels=num_head_channels[i],
+                transformer_num_layers=transformer_num_layers,
+                cross_attention_dim=cross_attention_dim,
+                upcast_attention=upcast_attention,
+                use_flash_attention=use_flash_attention,
+                dropout_cattn=dropout_cattn,
+            )
+
             self.down_blocks.append(down_block)
 
         # mid
-        self.middle_block = MedCrossAttnMidBlock(
+        self.middle_block = get_mid_block(
             spatial_dims=spatial_dims,
             in_channels=num_channels[-1],
             temb_channels=time_embed_dim,
@@ -405,7 +202,6 @@ class MedDiffUNet(nn.Module):
             upcast_attention=upcast_attention,
             use_flash_attention=use_flash_attention,
             dropout_cattn=dropout_cattn,
-            img_size=img_size, emb_size=emb_size, patch_size=patch_size
         )
 
         # up
@@ -415,7 +211,6 @@ class MedDiffUNet(nn.Module):
         reversed_attention_levels = list(reversed(attention_levels))
         reversed_num_head_channels = list(reversed(num_head_channels))
         output_channel = reversed_block_out_channels[0]
-        
         for i in range(len(reversed_block_out_channels)):
             prev_output_channel = output_channel
             output_channel = reversed_block_out_channels[i]
@@ -423,7 +218,7 @@ class MedDiffUNet(nn.Module):
 
             is_final_block = i == len(num_channels) - 1
 
-            up_block = MedCrossAttnUpBlock(
+            up_block = get_up_block(
                 spatial_dims=spatial_dims,
                 in_channels=input_channel,
                 prev_output_channel=prev_output_channel,
@@ -442,7 +237,6 @@ class MedDiffUNet(nn.Module):
                 upcast_attention=upcast_attention,
                 use_flash_attention=use_flash_attention,
                 dropout_cattn=dropout_cattn,
-                img_size=img_size, emb_size=emb_size, patch_size=patch_size
             )
 
             self.up_blocks.append(up_block)
@@ -469,7 +263,7 @@ class MedDiffUNet(nn.Module):
         x: torch.Tensor,
         timesteps: torch.Tensor,
         context: torch.Tensor | None = None,
-        class_labels: torch.Tensor | None = None,
+        clinical_cond: torch.Tensor | None = None,
         down_block_additional_residuals: tuple[torch.Tensor] | None = None,
         mid_block_additional_residual: torch.Tensor | None = None,
     ) -> torch.Tensor:
@@ -491,13 +285,14 @@ class MedDiffUNet(nn.Module):
         t_emb = t_emb.to(dtype=x.dtype)
         emb = self.time_embed(t_emb)
 
-        # 2. class
-        if self.num_class_embeds is not None:
-            if class_labels is None:
-                raise ValueError("class_labels should be provided when num_class_embeds > 0")
-            class_emb = self.class_embedding(class_labels)
-            class_emb = class_emb.to(dtype=x.dtype)
-            emb = emb + class_emb
+        # 2. clinical condition embedding
+        if self.clinical_condition is not None:
+            if clinical_cond is None:
+                raise ValueError("clinical condition for emb should be provided")
+            for cond_emb_idx, c_cond in enumerate(clinical_cond):
+                cond_emb = self.condition_emb_dict[self.clinical_condition[cond_emb_idx]](c_cond)
+                cond_emb = cond_emb.to(dtype=x.dtype)
+                emb = emb + cond_emb
 
         # 3. initial convolution
         h = self.conv_in(x)
