@@ -47,8 +47,8 @@ class LongitudinalDataset(Dataset):
         follow_img = nib.load(os.path.join(self.imgpath, self.subj_info['File_name_F'].iloc[idx]+".gz"))
         follow_img = follow_img.get_fdata()
 
-        condition = self.subj_info.loc[idx, ['Age_B', 'Sex']].values
-        interval = self.subj_info['interval'].iloc[idx]
+        condition = self.subj_info.loc[idx, ['Age_B', 'Sex']].values.astype(float)
+        interval = self.subj_info['Interval'].iloc[idx]
         
         # Convert the numpy array to a PyTorch tensor
         base_img = torch.from_numpy(base_img).unsqueeze(0).float()
@@ -63,7 +63,7 @@ class LongitudinalDataset(Dataset):
             base_img = self.Transform(base_img)
         
         # Phenotype
-        condition = torch.tensor(condition).float()
+        condition = torch.from_numpy(condition)
 
         result = {'base_img': base_img,
                   'follow_img': follow_img, 
