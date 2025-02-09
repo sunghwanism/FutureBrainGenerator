@@ -43,8 +43,10 @@ def main(config):
         init_wandb(config)
     
     if local_rank == 0:
+        print("******"*20)
         print(config)
         print(f"Using device {device} on rank {rank}")
+        print("******"*20)
     #######################################################################################
     if config.use_transform:
         train_transform = tio.Compose([
@@ -76,7 +78,7 @@ def main(config):
         z = EDmodel.encode_stage_2_inputs(first_batch['base_img'].to(device))
     scale_factor = 1 # / torch.std(z)
     
-    base_img_size = len(z.flatten(1))
+    base_img_size = z[0].numel()
     latent_dim = z.shape[1]
     
     unet = generate_unet(config, device, base_img_size, latent_dim, local_rank)
@@ -129,7 +131,7 @@ def main(config):
                                       inferer.scheduler.num_train_timesteps, 
                                       (base_img.shape[0],), 
                                       device=base_img_z.device).long()
-            
+
             noise_pred = inferer(inputs=follow_img, autoencoder_model=EDmodel,
                                  diffusion_model=unet, noise=noise, timesteps=timesteps,
                                  condition=base_img_z,

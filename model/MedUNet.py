@@ -152,7 +152,7 @@ class LongLDMmodel(nn.Module):
         # clinical embedding
         self.clinical_condition = clinical_condition
         if clinical_condition is not None:
-            self.condition_emb_dict = {}
+            self.condition_emb_dict = nn.ModuleDict()
             for c_cond in self.clinical_condition:
                 if c_cond == 'Sex':
                     self.condition_emb_dict[c_cond] = nn.Embedding(2, time_embed_dim)
@@ -160,6 +160,7 @@ class LongLDMmodel(nn.Module):
                     self.condition_emb_dict[c_cond] = nn.Linear(1, time_embed_dim)
                 else:
                     raise ValueError("Need to define the embedding for the clinical condition")
+                
 
         # down
         self.down_blocks = nn.ModuleList([])
@@ -292,14 +293,14 @@ class LongLDMmodel(nn.Module):
         if self.clinical_condition is not None:
             if clinical_cond is None:
                 raise ValueError("clinical condition for emb should be provided")
-            for cond_emb_idx, c_cond in enumerate(clinical_cond):
-                cond_emb = self.condition_emb_dict[self.clinical_condition[cond_emb_idx]](c_cond)
-                cond_emb = cond_emb.to(dtype=x.dtype)
-                emb = emb + cond_emb
-
+            emb_base_age = self.condition_emb_dict['Age'](clinical_cond[:, 0].unsqueeze(-1).to(dtype=x.dtype))
+            emb_sex = self.condition_emb_dict['Sex'](clinical_cond[:, 1].to(torch.long))
+            
+            emb = emb + emb_base_age.to(dtype=x.dtype) + emb_sex.to(dtype=x.dtype)
+        
         # 3. initial convolution
-        h = self.conv_in(x)
-
+        h = self.conv_in(x) # (batch, diff_num_channel, *z_shape)
+        
         # 4. down
         if context is not None and self.with_conditioning is False:
             raise ValueError("model should have with_conditioning = True if context is provided")
@@ -504,7 +505,7 @@ class BasicTransformerBlock(nn.Module):
     def forward(self, x: torch.Tensor, context: torch.Tensor | None = None) -> torch.Tensor:
         # 1. Self-Attention
         x = self.attn1(self.norm1(x)) + x
-
+        
         # 2. Cross-Attention
         x = self.attn2(self.norm2(x), context=context) + x
 
@@ -513,65 +514,65 @@ class BasicTransformerBlock(nn.Module):
         return x
 
 
-class BrainTransformerBlock(nn.Module):
-    """
-    A basic Transformer block.
+# class BrainTransformerBlock(nn.Module):
+#     """
+#     A basic Transformer block.
 
-    Args:
-        num_channels: number of channels in the input and output.
-        num_attention_heads: number of heads to use for multi-head attention.
-        num_head_channels: number of channels in each attention head.
-        dropout: dropout probability to use.
-        cross_attention_dim: size of the context vector for cross attention.
-        upcast_attention: if True, upcast attention operations to full precision.
-        use_flash_attention: if True, use flash attention for a memory efficient attention mechanism.
-    """
+#     Args:
+#         num_channels: number of channels in the input and output.
+#         num_attention_heads: number of heads to use for multi-head attention.
+#         num_head_channels: number of channels in each attention head.
+#         dropout: dropout probability to use.
+#         cross_attention_dim: size of the context vector for cross attention.
+#         upcast_attention: if True, upcast attention operations to full precision.
+#         use_flash_attention: if True, use flash attention for a memory efficient attention mechanism.
+#     """
 
-    def __init__(
-        self,
-        num_channels: int,
-        num_attention_heads: int,
-        num_head_channels: int,
-        dropout: float = 0.0,
-        cross_attention_dim: int | None = None,
-        upcast_attention: bool = False,
-        use_flash_attention: bool = False,
-    ) -> None:
-        super().__init__()
+#     def __init__(
+#         self,
+#         num_channels: int,
+#         num_attention_heads: int,
+#         num_head_channels: int,
+#         dropout: float = 0.0,
+#         cross_attention_dim: int | None = None,
+#         upcast_attention: bool = False,
+#         use_flash_attention: bool = False,
+#     ) -> None:
+#         super().__init__()
 
-        self.attn2 = CrossAttention(
-            query_dim=num_channels,
-            cross_attention_dim=cross_attention_dim,
-            num_attention_heads=num_attention_heads,
-            num_head_channels=num_head_channels,
-            dropout=dropout,
-            upcast_attention=upcast_attention,
-            use_flash_attention=use_flash_attention,
-        )
-        self.ff = MLPBlock(hidden_size=num_channels, mlp_dim=num_channels * 4, act="GEGLU", dropout_rate=dropout)
-        self.attn2 = CrossAttention(
-            query_dim=num_channels,
-            cross_attention_dim=cross_attention_dim,
-            num_attention_heads=num_attention_heads,
-            num_head_channels=num_head_channels,
-            dropout=dropout,
-            upcast_attention=upcast_attention,
-            use_flash_attention=use_flash_attention,
-        )  # is a self-attention if context is None
-        self.norm1 = nn.LayerNorm(num_channels)
-        self.norm2 = nn.LayerNorm(num_channels)
-        self.norm3 = nn.LayerNorm(num_channels)
+#         self.attn2 = CrossAttention(
+#             query_dim=num_channels,
+#             cross_attention_dim=cross_attention_dim,
+#             num_attention_heads=num_attention_heads,
+#             num_head_channels=num_head_channels,
+#             dropout=dropout,
+#             upcast_attention=upcast_attention,
+#             use_flash_attention=use_flash_attention,
+#         )
+#         self.ff = MLPBlock(hidden_size=num_channels, mlp_dim=num_channels * 4, act="GEGLU", dropout_rate=dropout)
+#         self.attn2 = CrossAttention(
+#             query_dim=num_channels,
+#             cross_attention_dim=cross_attention_dim,
+#             num_attention_heads=num_attention_heads,
+#             num_head_channels=num_head_channels,
+#             dropout=dropout,
+#             upcast_attention=upcast_attention,
+#             use_flash_attention=use_flash_attention,
+#         )  # is a self-attention if context is None
+#         self.norm1 = nn.LayerNorm(num_channels)
+#         self.norm2 = nn.LayerNorm(num_channels)
+#         self.norm3 = nn.LayerNorm(num_channels)
 
-    def forward(self, x: torch.Tensor, context: torch.Tensor | None = None) -> torch.Tensor:
-        # 1. Self-Attention
-        x = self.attn1(self.norm1(x)) + x
+#     def forward(self, x: torch.Tensor, context: torch.Tensor | None = None) -> torch.Tensor:
+#         # 1. Self-Attention
+#         x = self.attn1(self.norm1(x)) + x
 
-        # 2. Cross-Attention
-        x = self.attn2(self.norm2(x), context=context) + x
+#         # 2. Cross-Attention
+#         x = self.attn2(self.norm2(x), context=context) + x
 
-        # 3. Feed-forward
-        x = self.ff(self.norm3(x)) + x
-        return x
+#         # 3. Feed-forward
+#         x = self.ff(self.norm3(x)) + x
+#         return x
 
 
 
