@@ -14,7 +14,7 @@ def get_run_parser():
     
     # Model
     parser.add_argument('--enc_model', type=str,
-                        default='ckpt/VQGAN/best_vqvae_model_dim16_reconloss0.011_ep210.pth',
+                        default='ckpt/VQGAN/dim16/best_vqvae_model_dim16_reconloss0.01_ep500.pth',
                         help='Encoder File name')
     parser.add_argument('--train_model', type=str, default='LDM',
                         help='Which model to run')
