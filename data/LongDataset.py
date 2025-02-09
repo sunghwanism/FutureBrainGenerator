@@ -76,7 +76,7 @@ class LongitudinalDataset(Dataset):
         result = {'base_img': base_img,
                   'follow_img': follow_img, 
                   'condition': condition,
-                  'interval': interval,
+                  'interval': torch.tensor(interval).unsqueeze(0),
                   'Age_F': self.subj_info['Age_F'].iloc[idx],
                   'Age_B': self.subj_info['Age_B'].iloc[idx],
                   'Sex': self.subj_info['Sex'].iloc[idx]}
