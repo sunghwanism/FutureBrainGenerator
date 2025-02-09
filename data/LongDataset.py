@@ -5,6 +5,9 @@ from torch.utils.data import Dataset
 
 import pandas as pd
 import nibabel as nib
+import numpy as np
+
+import torchio as tio
 
 
 def crop_img(img, crop_size):
@@ -51,16 +54,21 @@ class LongitudinalDataset(Dataset):
         interval = self.subj_info['Interval'].iloc[idx]
         
         # Convert the numpy array to a PyTorch tensor
-        base_img = torch.from_numpy(base_img).unsqueeze(0).float()
-        follow_img = torch.from_numpy(follow_img).unsqueeze(0).float()
+        base_img = torch.tensor(base_img).float().unsqueeze(0)
+        follow_img = torch.tensor(follow_img).float().unsqueeze(0)
         
         # Processing the image (Crop & Transform)
         base_img = crop_img(base_img, self.config.crop_size)
         follow_img = crop_img(follow_img, self.config.crop_size)
         
         if self.Transform is not None:
-            follow_img = self.Transform(follow_img)
-            base_img = self.Transform(base_img)
+            subject = tio.Subject(
+                base_img=tio.ScalarImage(tensor=base_img, affine=np.eye(4)),
+                follow_img=tio.ScalarImage(tensor=follow_img, affine=np.eye(4))
+            )
+            subject = self.Transform(subject)
+            base_img = subject['base_img'].data
+            follow_img = subject['follow_img'].data
         
         # Phenotype
         condition = torch.from_numpy(condition)
