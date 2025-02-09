@@ -141,7 +141,7 @@ def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
     return unet
 
 def generate_Inferer(scheduler, scale_factor, config):
-    if config.model == 'LDM':
+    if config.train_model == 'LDM':
         inferer = LongLDMInferer(scheduler, scale_factor=scale_factor,)
     else:
         raise ValueError(f"Model {config.model} not implemented")
