@@ -66,7 +66,7 @@ def main(config):
     # Load VQ-VAE model
     VQVAEPATH = os.path.join(config.base_path, config.enc_model)
 
-    EDmodel = load_VQVAE(config, device, VQVAEPATH)
+    EDmodel = load_VQVAE(device, VQVAEPATH, wrap_ddp=False, local_rank=None)
     EDmodel.eval()
     
     # Calculate the scale factor of latent space
