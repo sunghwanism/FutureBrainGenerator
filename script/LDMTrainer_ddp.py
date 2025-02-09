@@ -35,14 +35,16 @@ def main(config):
 
     torch.cuda.set_device(local_rank)
     device = torch.device('cuda', local_rank)
-    print(f"Using device {device} on rank {rank}")
 
     set_determinism(seed=config.seed)
     torch.backends.cudnn.benchmark = True
     
     if rank == 0 and not config.nowandb:
         init_wandb(config)
-        
+    
+    if local_rank == 0:
+        print(config)
+        print(f"Using device {device} on rank {rank}")
     #######################################################################################
     if config.use_transform:
         train_transform = tio.Compose([
@@ -72,7 +74,7 @@ def main(config):
     # Calculate the scale factor of latent space
     with torch.no_grad():
         z = EDmodel.encode_stage_2_inputs(first_batch['base_img'].to(device))
-    scale_factor = 1 / torch.std(z)
+    scale_factor = 1 # / torch.std(z)
     
     base_img_size = len(z.flatten(1))
     latent_dim = z.shape[1]
@@ -95,7 +97,7 @@ def main(config):
     del first_batch
     gc.collect()
     torch.cuda.empty_cache()
-
+    
     ############################################# Training Process #############################################    
     for epoch in range(config.epochs):
         
@@ -118,7 +120,7 @@ def main(config):
             
             base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
             base_img_z = base_img_z * scale_factor
-            base_img_z = base_img_z + batch['interval'].to(device)
+            base_img_z = base_img_z.to(device) + batch['interval'].to(device)
             
             optimizer_diff.zero_grad(set_to_none=True)
 
@@ -126,9 +128,8 @@ def main(config):
             timesteps = torch.randint(0,
                                       inferer.scheduler.num_train_timesteps, 
                                       (base_img.shape[0],), 
-                                      device=base_img.device).long()
-
-
+                                      device=base_img_z.device).long()
+            
             noise_pred = inferer(inputs=follow_img, autoencoder_model=EDmodel,
                                  diffusion_model=unet, noise=noise, timesteps=timesteps,
                                  condition=base_img_z,
@@ -243,6 +244,5 @@ def main(config):
 if __name__ == "__main__":
     parser = get_run_parser()
     config = parser.parse_args()
-    print(config)
     main(config)
 
