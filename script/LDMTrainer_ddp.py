@@ -41,12 +41,21 @@ def main(config):
     
     if rank == 0 and not config.nowandb:
         init_wandb(config)
+        wandb_save_path = os.path.join(config.save_path, f'{wandb.run.name}')
+        wandb_img_path = os.path.join(config.save_img_path, f'{wandb.run.name}')
+
+        if not os.exists(wandb_save_path):
+            os.makedirs(wandb_save_path)
+        if not os.exists(wandb_img_path):
+            os.makedirs(wandb_img_path)
     
     if local_rank == 0:
         print("******"*20)
         print(config)
         print(f"Using device {device} on rank {rank}")
         print("******"*20)
+
+    
     #######################################################################################
     if config.use_transform:
         train_transform = tio.Compose([
@@ -92,7 +101,7 @@ def main(config):
     config_dict = vars(config)
 
     if rank == 0 and not config.nowandb:
-        configPath = os.path.join(config.save_path, f'config_{wandb.run.name}.json')
+        configPath = os.path.join(wandb_save_path, f'config_{wandb.run.name}.json')
         with open(configPath, 'w') as f:
             json.dump(config_dict, f, indent=4)
 
@@ -173,7 +182,7 @@ def main(config):
                 "scheduler": unet_lr_scheduler.state_dict(),
             }
 
-            torch.save(save_dict, os.path.join(config.save_path, f"{config.train_model}_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
+            torch.save(save_dict, os.path.join(wandb_save_path, f"{config.train_model}_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
             print(f"Model saved at epoch {epoch+1} with noise loss {epoch_loss}")
         
         unet_lr_scheduler.step()
@@ -228,7 +237,7 @@ def main(config):
                             'Age_B': batch['Age_B'][:config.n_example_images],
                         }
 
-                    torch.save(save_img_dict, os.path.join(config.save_img_path, f"{config.train_model}_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
+                    torch.save(save_img_dict, os.path.join(wandb_img_path, f"{config.train_model}_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
                 
                 epoch_val_loss = merge_loss_all_rank([val_loss], device, world_size, len(val_loader))
                 
