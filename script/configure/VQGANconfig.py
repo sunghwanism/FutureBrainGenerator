@@ -14,7 +14,7 @@ def get_run_parser():
     # Data
     parser.add_argument('--data_path', type=str, default=f'/NFS/FutureBrainGen/data/cross',
                         help='Path to data')
-    parser.add_argument('--crop_size',type=int, nargs='+', default=(84, 104, 84),)
+    parser.add_argument('--crop_size',type=int, nargs='+', default=(96, 112, 96),)
     parser.add_argument('--use_transform', action='store_true',)
     
     # Device Arguments

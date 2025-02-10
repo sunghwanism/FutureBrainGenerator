@@ -25,7 +25,7 @@ def get_run_parser():
     # Data
     parser.add_argument('--data_path', type=str, default=f'/NFS/FutureBrainGen/data/long',
                         help='Path to data')
-    parser.add_argument('--crop_size',type=int, nargs='+', default=(88, 108, 88),)
+    parser.add_argument('--crop_size',type=int, nargs='+', default=(96, 112, 96),)
     parser.add_argument('--use_transform', action='store_true',)
     
     # Device Arguments
@@ -55,11 +55,11 @@ def get_run_parser():
     parser.add_argument('--beta_end', type=float, default=0.0205,) # 0.0195 
 
     # Hyperparameters
-    parser.add_argument('--diff_num_channels', type=int, nargs='+', default=(32, 64, 128, 256),
+    parser.add_argument('--diff_num_channels', type=int, nargs='+', default=(64, 128, 256),
                         help="List of channel sizes")
-    parser.add_argument('--diff_num_res_blocks', type=int, default=(1, 1, 1, 1))
-    parser.add_argument('--diff_num_head_channels', type=int, nargs='+', default=(0, 32, 64, 128),)
-    parser.add_argument('--diff_attention_levels', type=int, nargs='+', default=(0, 1, 1, 1),)
+    parser.add_argument('--diff_num_res_blocks', type=int, default=(1, 1, 1))
+    parser.add_argument('--diff_num_head_channels', type=int, nargs='+', default=(0, 64, 128),)
+    parser.add_argument('--diff_attention_levels', type=int, nargs='+', default=(0, 1, 1),)
 
     # Save and Log Arguments
     parser.add_argument('--save_path', type=str, default=f'/NFS/FutureBrainGen/ckpt/LDM',
