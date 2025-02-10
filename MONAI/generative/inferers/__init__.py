@@ -17,5 +17,4 @@ from .inferer import (
     DiffusionInferer,
     LatentDiffusionInferer,
     VQVAETransformerInferer,
-    LatentCfDiffusionInferer
 )

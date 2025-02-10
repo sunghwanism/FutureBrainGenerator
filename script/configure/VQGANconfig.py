@@ -12,9 +12,11 @@ def get_run_parser():
                         help='Which model to run')
     
     # Data
-    parser.add_argument('--data_path', type=str, default=f'/NFS/FutureBrainGen/data/cross',
+    parser.add_argument('--data_path', type=str,
+                        default=f'/NFS/FutureBrainGen/data/cross',
+                        # default='/local_datasets/msh2044/cross',
                         help='Path to data')
-    parser.add_argument('--crop_size',type=int, nargs='+', default=(84, 104, 84),)
+    parser.add_argument('--crop_size',type=int, nargs='+', default=(96, 112, 96),)
     parser.add_argument('--use_transform', action='store_true',)
     
     # Device Arguments
@@ -28,7 +30,7 @@ def get_run_parser():
                         help='Batch size')
     parser.add_argument('--epochs', type=int, default=500,
                         help='Number of epochs')
-    parser.add_argument('--gen_lr', type=float, default=2e-4,
+    parser.add_argument('--gen_lr', type=float, default=3e-4,
                         help='Generator Learning rate')
     parser.add_argument('--disc_lr', type=float, default=5e-4,
                         help='Discriminator Learning rate')
@@ -57,20 +59,23 @@ def get_run_parser():
     parser.add_argument('--commitment_cost', type=float, default=0.3) # base = 0.25
     
     # Save and Log Arguments
-    parser.add_argument('--save_path', type=str, default=f'/NFS/FutureBrainGen/ckpt/VQGAN',
+    parser.add_argument('--save_path', type=str,
+                        default=f'/NFS/FutureBrainGen/ckpt/VQGAN',
+                        # default='/data/msh2044/results/FutureBrainGen/ckpt/VQGAN',
                         help='Where to save the model')
-    parser.add_argument('--save_img_path', type=str, default=f'/NFS/FutureBrainGen/results/VQGAN/img',
+    parser.add_argument('--save_img_path', type=str,
+                        default=f'/NFS/FutureBrainGen/results/VQGAN/img',
+                        # default='/data/msh2044/results/FutureBrainGen/img/VQGAN',
                         help='Where to save the images')
-    parser.add_argument('--save_interval', type=int, default=10,
+    parser.add_argument('--save_interval', type=int, default=20,
                         help='How often to save')
-    
-    parser.add_argument('--save_img_interval', type=int, default=50,
+    parser.add_argument('--save_img_interval', type=int, default=100,
                         help='How often to save images')
     parser.add_argument('--n_example_images', type=float, default=2,
                         help='Validation images')
     
     # Wandb Arguments
-    parser.add_argument('--wandb_project', type=str, default='FutureGen_VQGAN',
+    parser.add_argument('--wandb_project', type=str, default='FutureBrain_VQGAN',
                         help='Wandb project')
     parser.add_argument('--wandb_entity', type=str, default='msh2044',
                         help='Wandb entity')

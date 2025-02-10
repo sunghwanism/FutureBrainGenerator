@@ -32,9 +32,7 @@ warnings.filterwarnings("ignore")
 
 
 def main(config):
-    
-    print_config()
-    
+
     dist.init_process_group(backend='nccl', init_method='env://')
     local_rank = int(os.environ["LOCAL_RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
@@ -42,13 +40,26 @@ def main(config):
 
     torch.cuda.set_device(local_rank)
     device = torch.device('cuda', local_rank)
-    print(f"Using device {device} on rank {rank}")
-
+    
     set_determinism(seed=config.seed)
     torch.backends.cudnn.benchmark = True
     
     if rank == 0 and not config.nowandb:
-        init_wandb(config)
+        init_wandb(config,)
+        wandb_save_path = os.path.join(config.save_path, f'{wandb.run.name}')
+        wandb_img_path = os.path.join(config.save_img_path, f'{wandb.run.name}')
+
+        if not os.path.exists(wandb_save_path):
+            os.makedirs(wandb_save_path)
+
+        if not os.path.exists(wandb_img_path):
+            os.makedirs(wandb_img_path)
+
+    if local_rank == 0:
+        print("******"*20)
+        print(config)
+        print(f"Using device {device} on rank {rank}")
+        print("******"*20)
 
     #######################################################################################
     if config.use_transform:
@@ -129,9 +140,7 @@ def main(config):
     optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=config.disc_lr)
 
     scheduler_g = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_g, T_max=30, eta_min=0)
-    scheduler_d = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_d, T_max=50, eta_min=0)
-
-    best_val_recon_loss = np.inf
+    scheduler_d = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_d, T_max=30, eta_min=0)
     
     for epoch in range(config.epochs):
         
@@ -279,7 +288,7 @@ def main(config):
                             orig_mri = images[i].detach().cpu().numpy()
                             recon_mri = recon_sample_imgs[i].detach().cpu().numpy()
 
-                            np.savez(os.path.join(config.save_img_path, f"recon_ep{epoch+1}_{i}_dim{config.latent_channels}.npz"),
+                            np.savez(os.path.join(wandb_img_path, f"recon_ep{epoch+1}_{i}_dim{config.latent_channels}.npz"),
                                      origin=orig_mri, recon=recon_mri)
 
                         del orig_mri, recon_mri, recon_sample_imgs
@@ -303,10 +312,9 @@ def main(config):
                 torch.save(
                     {
                         'encoder': cpu_state_dict,
-                        # 'discriminator': discriminator.module.state_dict(),
                         'config': config
                     },
-                    os.path.join(config.save_path, f"best_{config.train_model}_model_dim{config.latent_channels}_reconloss{round(val_loss,3)}_ep{epoch+1}.pth"),
+                    os.path.join(wandb_save_path, f"best_{config.train_model}_model_dim{config.latent_channels}_reconloss{round(val_loss,3)}_ep{epoch+1}.pth"),
                 )
             
             gc.collect()
@@ -318,5 +326,4 @@ def main(config):
 if __name__ == '__main__':
     parser = get_run_parser()
     config = parser.parse_args()
-    print(config)
     main(config)
