@@ -13,8 +13,7 @@ import torch.distributed as dist
 import torchio as tio
 import gc
 
-from monai.config import print_config
-from monai.utils import set_determinism
+from monai.utils import set_determinism, first
 
 from tqdm import tqdm
 import wandb
@@ -199,52 +198,50 @@ def main(config):
             val_loss = 0
 
             with torch.no_grad():
-                for idx, batch in enumerate(val_loader):
-                    if idx < 3:
-                        base_img = batch['base_img'].to(device)
-                        follow_img = batch['follow_img'].to(device)
-                        condition = batch["condition"].to(device)
-                        
-                        base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
-                        base_img_z = base_img_z * scale_factor
-                        base_img_z = base_img_z + batch['interval'].to(device)
-
-                        noise = torch.randn_like(z).to(device)
-                        scheduler.set_timesteps(num_inference_steps=config.timestep)
-
-                        synthetic_images, intermediate_img = inferer.sample(input_noise=noise, 
-                                                                            autoencoder_model=EDmodel,
-                                                                            diffusion_model=unet,
-                                                                            conditioning=base_img_z,
-                                                                            clinical_cond=condition,
-                                                                            mode='crossattn',
-                                                                            save_intermediates=True if idx == 0 else False,
-                                                                            intermediate_steps=200,
-                                                                            verbose=False,
-                                                                            scheduler=scheduler)
-
-                        recons_loss = F.l1_loss(synthetic_images.float(), follow_img.float())
-                        val_loss += recons_loss.item()
-
-                        if idx == 0:
-                            intermediate_img = [img.detach().cpu().numpy() for img in intermediate_img]
-                            intermediate_img = np.array(intermediate_img)
-
-                            save_img_dict = {
-                                "epoch": epoch+1,
-                                'follow_img': follow_img[:config.n_example_images],
-                                "base_img": base_img[:config.n_example_images],
-                                "synthetic_images": synthetic_images[:config.n_example_images],
-                                'intermediate_img': intermediate_img[:, :config.n_example_images],
-                                'condition': condition[:config.n_example_images],
-                                'Sex': batch['Sex'][:config.n_example_images],
-                                'Age_F': batch['Age_F'][:config.n_example_images],
-                                'Age_B': batch['Age_B'][:config.n_example_images],
-                            }
-
-                            torch.save(save_img_dict, os.path.join(wandb_img_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
-                            del save_img_dict
+                batch = first(val_loader)
                 
+                base_img = batch['base_img'].to(device)
+                follow_img = batch['follow_img'].to(device)
+                condition = batch["condition"].to(device)
+                
+                base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
+                base_img_z = base_img_z * scale_factor
+                base_img_z = base_img_z + batch['interval'].to(device)
+
+                noise = torch.randn_like(z).to(device)
+                scheduler.set_timesteps(num_inference_steps=config.timestep)
+
+                synthetic_images, intermediate_img = inferer.sample(input_noise=noise, 
+                                                                    autoencoder_model=EDmodel,
+                                                                    diffusion_model=unet,
+                                                                    conditioning=base_img_z,
+                                                                    clinical_cond=condition,
+                                                                    mode='crossattn',
+                                                                    save_intermediates=True,
+                                                                    intermediate_steps=200,
+                                                                    verbose=True,
+                                                                    scheduler=scheduler)
+
+                recons_loss = F.l1_loss(synthetic_images.float(), follow_img.float())
+                val_loss += recons_loss.item()
+
+                intermediate_img = [img.detach().cpu().numpy() for img in intermediate_img]
+                intermediate_img = np.array(intermediate_img)
+
+                save_img_dict = {
+                    "epoch": epoch+1,
+                    'follow_img': follow_img[:config.n_example_images],
+                    "base_img": base_img[:config.n_example_images],
+                    "synthetic_images": synthetic_images[:config.n_example_images],
+                    'intermediate_img': intermediate_img[:, :config.n_example_images],
+                    'condition': condition[:config.n_example_images],
+                    'Sex': batch['Sex'][:config.n_example_images],
+                    'Age_F': batch['Age_F'][:config.n_example_images],
+                    'Age_B': batch['Age_B'][:config.n_example_images],
+                }
+
+                torch.save(save_img_dict, os.path.join(wandb_img_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
+            
                 epoch_val_loss = merge_loss_all_rank([val_loss], device, world_size, len(val_loader))
                 
                 # Log to wandb
@@ -254,7 +251,7 @@ def main(config):
                         "val_recon_loss": epoch_val_loss,
                     })
 
-            del intermediate_img, synthetic_images, base_img, follow_img, base_img_z, noise, condition
+            del save_img_dict, intermediate_img, synthetic_images, base_img, follow_img, base_img_z, noise, condition
             gc.collect()
             torch.cuda.empty_cache()
             
