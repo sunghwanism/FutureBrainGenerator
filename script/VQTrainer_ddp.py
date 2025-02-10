@@ -40,8 +40,7 @@ def main(config):
 
     torch.cuda.set_device(local_rank)
     device = torch.device('cuda', local_rank)
-    print(f"Using device {device} on rank {rank}")
-
+    
     set_determinism(seed=config.seed)
     torch.backends.cudnn.benchmark = True
     
@@ -50,10 +49,10 @@ def main(config):
         wandb_save_path = os.path.join(config.save_path, f'{wandb.run.name}')
         wandb_img_path = os.path.join(config.save_img_path, f'{wandb.run.name}')
 
-        if not os.exists(wandb_save_path):
+        if not os.path.exists(wandb_save_path):
             os.makedirs(wandb_save_path)
 
-        if not os.exists(wandb_img_path):
+        if not os.path.exists(wandb_img_path):
             os.makedirs(wandb_img_path)
 
     if local_rank == 0:

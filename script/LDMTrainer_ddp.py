@@ -44,9 +44,9 @@ def main(config):
         wandb_save_path = os.path.join(config.save_path, f'{wandb.run.name}')
         wandb_img_path = os.path.join(config.save_img_path, f'{wandb.run.name}')
 
-        if not os.exists(wandb_save_path):
+        if not os.path.exists(wandb_save_path):
             os.makedirs(wandb_save_path)
-        if not os.exists(wandb_img_path):
+        if not os.path.exists(wandb_img_path):
             os.makedirs(wandb_img_path)
     
     if local_rank == 0:
