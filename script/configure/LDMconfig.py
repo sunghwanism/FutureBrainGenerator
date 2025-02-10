@@ -20,10 +20,15 @@ def get_run_parser():
                         help='Which model to run')
     
     # BASE
-    parser.add_argument('--base_path', type=str, default=f'/NFS/FutureBrainGen/',)
+    parser.add_argument('--base_path', type=str, 
+                        default=f'/NFS/FutureBrainGen/',
+                        )
+    
     
     # Data
-    parser.add_argument('--data_path', type=str, default=f'/NFS/FutureBrainGen/data/long',
+    parser.add_argument('--data_path', type=str,
+                        default=f'/NFS/FutureBrainGen/data/long',
+                        # default='/local_datasets/msh2044/long',
                         help='Path to data')
     parser.add_argument('--crop_size',type=int, nargs='+', default=(96, 112, 96),)
     parser.add_argument('--use_transform', action='store_true',)
@@ -62,9 +67,13 @@ def get_run_parser():
     parser.add_argument('--diff_attention_levels', type=int, nargs='+', default=(0, 1, 1),)
 
     # Save and Log Arguments
-    parser.add_argument('--save_path', type=str, default=f'/NFS/FutureBrainGen/ckpt/LDM',
+    parser.add_argument('--save_path', type=str,
+                        default=f'/NFS/FutureBrainGen/ckpt/LDM',
+                        # default='/data/msh2044/results/FutureBrainGen/ckpt/LDM',
                         help='Where to save the model')
-    parser.add_argument('--save_img_path', type=str, default=f'/NFS/FutureBrainGen/results/LDM/img',
+    parser.add_argument('--save_img_path', type=str,
+                        default=f'/NFS/FutureBrainGen/results/LDM/img',
+                        # default='/data/msh2044/results/FutureBrainGen/img/LDM',
                         help='Where to save the images')
     parser.add_argument('--save_interval', type=int, default=1,
                         help='How often to save')
@@ -75,7 +84,7 @@ def get_run_parser():
                         help='Validation images')
     
     # Wandb Arguments
-    parser.add_argument('--wandb_project', type=str, default='FutureGen_LDM',
+    parser.add_argument('--wandb_project', type=str, default='FutureBrain_LDM',
                         help='Wandb project')
     parser.add_argument('--wandb_entity', type=str, default='msh2044',
                         help='Wandb entity')

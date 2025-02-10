@@ -54,7 +54,6 @@ def main(config):
         print(config)
         print(f"Using device {device} on rank {rank}")
         print("******"*20)
-
     
     #######################################################################################
     if config.use_transform:

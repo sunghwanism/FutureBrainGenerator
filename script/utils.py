@@ -20,12 +20,14 @@ from model.MedUNet import LongLDMmodel
 from model.inferer import LongLDMInferer
 
 
-def init_wandb(config):
+def init_wandb(config, key=None):
     if not config.nowandb:
         assert wandb is not None, "Wandb not installed, please install it or run without wandb"
+        if key is not None:
+            wandb.login(key=key)
         wandb.init(project=config.wandb_project, entity=config.wandb_entity, config=config)
         config.wandb_url = wandb.run.get_url()
-        
+    
         
 def load_confg(config_path):
     with open(config_path, 'r') as f:
