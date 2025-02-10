@@ -49,6 +49,8 @@ def main(config):
     
     if rank == 0 and not config.nowandb:
         init_wandb(config)
+        wandb_save_path = os.path.join(config.save_path, f'{wandb.run.name}')
+        wandb_img_path = os.path.join(config.save_img_path, f'{wandb.run.name}')
 
     #######################################################################################
     if config.use_transform:
@@ -277,7 +279,7 @@ def main(config):
                             orig_mri = images[i].detach().cpu().numpy()
                             recon_mri = recon_sample_imgs[i].detach().cpu().numpy()
 
-                            np.savez(os.path.join(config.save_img_path, f"recon_ep{epoch+1}_{i}_dim{config.latent_channels}.npz"),
+                            np.savez(os.path.join(wandb_img_path, f"recon_ep{epoch+1}_{i}_dim{config.latent_channels}.npz"),
                                      origin=orig_mri, recon=recon_mri)
 
                         del orig_mri, recon_mri, recon_sample_imgs
@@ -303,7 +305,7 @@ def main(config):
                         'encoder': cpu_state_dict,
                         'config': config
                     },
-                    os.path.join(config.save_path, f"best_{config.train_model}_model_dim{config.latent_channels}_reconloss{round(val_loss,3)}_ep{epoch+1}.pth"),
+                    os.path.join(wandb_save_path, f"best_{config.train_model}_model_dim{config.latent_channels}_reconloss{round(val_loss,3)}_ep{epoch+1}.pth"),
                 )
             
             gc.collect()
