@@ -181,7 +181,7 @@ def main(config):
                 "scheduler": unet_lr_scheduler.state_dict(),
             }
 
-            torch.save(save_dict, os.path.join(wandb_save_path, f"{config.train_model}_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
+            torch.save(save_dict, os.path.join(wandb_save_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
             print(f"Model saved at epoch {epoch+1} with noise loss {epoch_loss}")
         
         unet_lr_scheduler.step()
@@ -236,7 +236,7 @@ def main(config):
                             'Age_B': batch['Age_B'][:config.n_example_images],
                         }
 
-                    torch.save(save_img_dict, os.path.join(wandb_img_path, f"{config.train_model}_ep{epoch+1}_dim{config.latent_channels}_{wandb.run.name}.pth"))
+                    torch.save(save_img_dict, os.path.join(wandb_img_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
                 
                 epoch_val_loss = merge_loss_all_rank([val_loss], device, world_size, len(val_loader))
                 
