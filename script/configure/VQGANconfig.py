@@ -61,10 +61,10 @@ def get_run_parser():
                         help='Where to save the model')
     parser.add_argument('--save_img_path', type=str, default=f'/NFS/FutureBrainGen/results/VQGAN/img',
                         help='Where to save the images')
-    parser.add_argument('--save_interval', type=int, default=10,
+    parser.add_argument('--save_interval', type=int, default=20,
                         help='How often to save')
     
-    parser.add_argument('--save_img_interval', type=int, default=50,
+    parser.add_argument('--save_img_interval', type=int, default=100,
                         help='How often to save images')
     parser.add_argument('--n_example_images', type=float, default=2,
                         help='Validation images')
