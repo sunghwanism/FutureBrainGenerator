@@ -184,7 +184,7 @@ class TransformerXia(nn.Module):
         self.OF = self.args['OF']
         self.latent_dim = self.args['latent_dim']
         self.num_classes = self.args['num_classes']
-        self.image_size = [88,108,88]
+        self.image_size = [96,112,96]
 
         if self.args['encoding'] == 'positive':
             self.encoding_operation = self._vec_to_enc_pve

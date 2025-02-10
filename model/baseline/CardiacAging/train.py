@@ -100,7 +100,7 @@ class CropTransform:
     """
     3D MRI 이미지에서 중심을 기준으로 Crop 후 Channel=1을 추가하는 Transform
     """
-    def __init__(self, crop_size=(88,108,88)):  # (Depth, Height, Width)
+    def __init__(self, crop_size=(96,112,96)):  # (Depth, Height, Width)
         self.crop_size = crop_size
 
     def __call__(self, image):
