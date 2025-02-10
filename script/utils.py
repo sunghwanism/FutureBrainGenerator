@@ -88,6 +88,7 @@ def longitudinal_load_dataloader(config, world_size, rank, train_transform, val_
     ValDataset = LongitudinalDataset(config, _type='val', Transform=val_transform)
     
     train_sampler = DistributedSampler(TrainDataset, num_replicas=world_size, rank=rank)
+    val_sampler = DistributedSampler(ValDataset, num_replicas=world_size, rank=rank)
 
     train_loader = DataLoader(
         TrainDataset,
@@ -105,7 +106,7 @@ def longitudinal_load_dataloader(config, world_size, rank, train_transform, val_
         batch_size=config.batch_size,
         num_workers=config.num_workers,
         pin_memory=True,
-        shuffle=True,
+        sampler=val_sampler,
         drop_last=True,
     )
     
