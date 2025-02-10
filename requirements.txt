@@ -16,4 +16,3 @@ imagecodecs; platform_system == "Linux" or platform_system == "Darwin"
 tifffile; platform_system == "Linux" or platform_system == "Darwin"
 transformers<4.22  # https://github.com/Project-MONAI/MONAI/issues/5157
 torchio==0.20.4
-xformers==0.0.27
