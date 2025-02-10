@@ -100,7 +100,7 @@ class CropTransform:
     """
     3D MRI 이미지에서 중심을 기준으로 Crop 후 Channel=1을 추가하는 Transform
     """
-    def __init__(self, crop_size=(86, 106, 86)):  # (Depth, Height, Width)
+    def __init__(self, crop_size=(88,108,88)):  # (Depth, Height, Width)
         self.crop_size = crop_size
 
     def __call__(self, image):
@@ -153,22 +153,22 @@ def main():
     
     train_files = [os.path.join(args.dataf, f) for f in train_df['File_name_B']]
     train_labels = train_df['Age_B'].to_numpy()
-    train_data = train_df['Sex']
+    train_data = train_df[['Sex']]
     train_data.reset_index(inplace=True, drop=True)
 
     train_files2 = [os.path.join(args.dataf, f) for f in train_df['File_name_F']]
     train_labels2 = train_df['Age_F'].to_numpy()
-    train_data2 = train_df['Sex']
+    train_data2 = train_df[['Sex']]
     train_data2.reset_index(inplace=True, drop=True)
 
     val_files = [os.path.join(args.dataf, f) for f in val_df['File_name_B']]
     val_labels = val_df['Age_B'].to_numpy()
-    val_data = val_df['Sex']
+    val_data = val_df[['Sex']]
     val_data.reset_index(inplace=True, drop=True)
 
     val_files2 = [os.path.join(args.dataf, f) for f in val_df['File_name_F']]
     val_labels2 = val_df['Age_F'].to_numpy()
-    val_data2 = val_df['Sex']
+    val_data2 = val_df[['Sex']]
     val_data2.reset_index(inplace=True, drop=True)
 
     # transform = MRI3DTransform(target_size=(137, 113), depth=4)
@@ -227,7 +227,7 @@ def main():
             dirpath=ckpt_folder,
             filename='model-{epoch:03d}-{train_loss:.2f}',
             save_top_k=10,
-            save_last=False,
+            save_last=True,
             mode='min',
         )
         callbacks = [checkpoint_callback]
@@ -246,7 +246,7 @@ def main():
         # Train with Pytorch Lightning
         pl.seed_everything(42, workers=True)
 
-        # tb_logger = pl_loggers.TensorBoardLogger(os.path.join(wd, 'logs'), name=args.name)
+        tb_logger = pl_loggers.TensorBoardLogger(os.path.join(wd, 'logs'), name=args.name)
 
         # wandb logger
         if args.wandb:
@@ -254,13 +254,8 @@ def main():
             wandb_logger.log_hyperparams(settings)
             wandb_logger.watch(model, log='all')
             loggers = [wandb_logger]
-
-        # wandb logger
-        if args.wandb:
-            wandb_logger = WandbLogger(name=args.name, project='CardiacAging')
-            wandb_logger.log_hyperparams(settings)
-            wandb_logger.watch(model, log='all')
-            loggers = [wandb_logger]
+        else:
+            loggers = []
 
         # Drop comet logger when testing
         loggers.append(tb_logger)
@@ -301,8 +296,8 @@ def main():
             )))[-1]
         print('Found model "{}"'.format(ckpt_model))
         hpms_file = list(glob.iglob(
-            # os.path.join(wd, 'logs', args.name, '*', 'hparams.yaml')))[-1]
-            os.path.join(wd, 'logs', 'default', '*', 'hparams.yaml')))[-1]
+            os.path.join(wd, 'logs', args.name, '*', 'hparams.yaml')))[-1]
+            # os.path.join(wd, 'logs', 'default', '*', 'hparams.yaml')))[-1]
         print('hparams file "{}"'.format(hpms_file))
 
         if settings['task_type'] == 'regression':
@@ -332,12 +327,12 @@ def main():
         # Data loading code
         test_files = [os.path.join(args.dataf, f) for f in test_df['File_name_B']]
         test_labels = test_df['Age_B'].to_numpy()
-        test_data = test_df['Sex']
+        test_data = test_df[['Sex']]
         test_data.reset_index(inplace=True, drop=True)
 
         test_files2 = [os.path.join(args.dataf, f) for f in test_df['File_name_F']]
         test_labels2 = test_df['Age_F'].to_numpy()
-        test_data2 = test_df['Sex']
+        test_data2 = test_df[['Sex']]
         test_data2.reset_index(inplace=True, drop=True)
 
         transform = CropTransform(crop_size=args.crop_size)

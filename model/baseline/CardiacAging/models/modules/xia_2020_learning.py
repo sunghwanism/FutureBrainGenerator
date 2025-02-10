@@ -171,7 +171,7 @@ class TransformerXia(nn.Module):
         super(TransformerXia, self).__init__()
 
         self.args = args
-        self.enc_half_size = 45
+        self.enc_half_size = 55
         self.enc_vec_size = 2 * self.enc_half_size
         weights = torch.ones((2 * self.enc_half_size, 2 * self.enc_half_size))
         for i in range(2 * self.enc_half_size):
@@ -184,7 +184,7 @@ class TransformerXia(nn.Module):
         self.OF = self.args['OF']
         self.latent_dim = self.args['latent_dim']
         self.num_classes = self.args['num_classes']
-        self.image_size = [86,106,86]
+        self.image_size = [88,108,88]
 
         if self.args['encoding'] == 'positive':
             self.encoding_operation = self._vec_to_enc_pve
@@ -203,7 +203,7 @@ class TransformerXia(nn.Module):
             nn.ReLU(inplace=True),
             nn.Flatten(),
             # nn.Linear(self.image_size[0] * self.image_size[1] * self.image_size[2] * self.OF, self.latent_dim),
-            nn.Linear(86*106*86*4, self.latent_dim),
+            nn.Linear(self.image_size[0]*self.image_size[1]*self.image_size[2]*4, self.latent_dim),
             nn.Sigmoid(),
             nn.BatchNorm1d(self.latent_dim)
         )
@@ -1249,9 +1249,6 @@ class GeneratorXiaReduced(nn.Module):
         # print('################after trans', aux.size())
         dec2 = torch.cat((aux, enc3), dim=1)
         # print('################after gen dec2', dec2.size())
-        # print('input shape', self.input_shape)
-        # print('kernel size', self.kernel_size)
-        # print('num_feat', self.num_feat)
         dec1 = self.dec1(dec2, enc2)
         # print('################after gen dec1', dec1.size())
         _map = self.dec0(dec1)
