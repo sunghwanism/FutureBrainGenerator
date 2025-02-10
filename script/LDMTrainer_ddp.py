@@ -242,18 +242,19 @@ def main(config):
 
                 torch.save(save_img_dict, os.path.join(wandb_img_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
             
-                epoch_val_loss = merge_loss_all_rank([val_loss], device, world_size, len(val_loader))
+                # epoch_val_loss = merge_loss_all_rank([val_loss], device, world_size, len(val_loader))
                 
-                # Log to wandb
-                if rank == 0 and not config.nowandb:
-                    wandb.log({
-                        "epoch": epoch+1,
-                        "val_recon_loss": epoch_val_loss,
-                    })
+                # # Log to wandb
+                # if rank == 0 and not config.nowandb:
+                #     wandb.log({
+                #         "epoch": epoch+1,
+                #         "val_recon_loss": epoch_val_loss,
+                #     })
 
             del save_img_dict, intermediate_img, synthetic_images, base_img, follow_img, base_img_z, noise, condition
             gc.collect()
             torch.cuda.empty_cache()
+            print("Finish generating synthetic images")
             
 if __name__ == "__main__":
     parser = get_run_parser()
