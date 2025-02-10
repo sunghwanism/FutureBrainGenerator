@@ -14,7 +14,7 @@ def get_run_parser():
     
     # Model
     parser.add_argument('--enc_model', type=str,
-                        default='ckpt/VQGAN/dim8/best_vqvae_model_dim8_reconloss0.01_ep100.pth',
+                        default='ckpt/VQGAN/magic-jazz-1/best_vqvae_model_dim16_reconloss0.053_ep1.pth',
                         help='Encoder File name')
     parser.add_argument('--train_model', type=str, default='LDM',
                         help='Which model to run')
@@ -23,7 +23,6 @@ def get_run_parser():
     parser.add_argument('--base_path', type=str, 
                         default=f'/NFS/FutureBrainGen/',
                         )
-    
     
     # Data
     parser.add_argument('--data_path', type=str,
