@@ -129,9 +129,7 @@ def main(config):
     optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=config.disc_lr)
 
     scheduler_g = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_g, T_max=30, eta_min=0)
-    scheduler_d = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_d, T_max=50, eta_min=0)
-
-    best_val_recon_loss = np.inf
+    scheduler_d = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_d, T_max=30, eta_min=0)
     
     for epoch in range(config.epochs):
         
@@ -303,7 +301,6 @@ def main(config):
                 torch.save(
                     {
                         'encoder': cpu_state_dict,
-                        # 'discriminator': discriminator.module.state_dict(),
                         'config': config
                     },
                     os.path.join(config.save_path, f"best_{config.train_model}_model_dim{config.latent_channels}_reconloss{round(val_loss,3)}_ep{epoch+1}.pth"),
