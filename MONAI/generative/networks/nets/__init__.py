@@ -20,4 +20,4 @@ from .spade_diffusion_model_unet import SPADEDiffusionModelUNet
 from .spade_network import SPADENet
 from .transformer import DecoderOnlyTransformer
 from .vqvae import VQVAE
-from .diffusion_model_unet import DiffusionModelClfUNet
+# from .diffusion_model_unet import DiffusionModelClfUNet

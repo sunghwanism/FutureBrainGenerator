@@ -4,6 +4,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../MONAI')))
 
 from einops import Rearrange
+import math
 
 import torch
 import torch.nn as nn
@@ -52,17 +53,61 @@ class PositionalEmbedding3D(nn.Module):
 
 
 class MedCrossAttention(CrossAttention):
-    def __init__(self, emb_size, **kwargs):
-        super(MedCrossAttention, self).__init__(**kwargs)
+    def __init__(
+        self,
+        query_dim: int,
+        cross_attention_dim: int | None = None,
+        num_attention_heads: int = 8,
+        num_head_channels: int = 64,
+        dropout: float = 0.0,
+        upcast_attention: bool = False,
+        use_flash_attention: bool = False,
+    ) -> None:
+        super().__init__(
+            query_dim=query_dim,
+            cross_attention_dim=cross_attention_dim,
+            num_attention_heads=num_attention_heads,
+            num_head_channels=num_head_channels,
+            dropout=dropout,
+            upcast_attention=upcast_attention,
+            use_flash_attention=use_flash_attention,
+        )
 
-        self.emb_size = emb_size
+        self.use_flash_attention = use_flash_attention
+        inner_dim = num_head_channels * num_attention_heads
+        cross_attention_dim = cross_attention_dim if cross_attention_dim is not None else query_dim
 
-        self.to_q = nn.Linear(emb_size, inner_dim, bias=False)
+        self.scale = 1 / math.sqrt(num_head_channels)
+        self.num_heads = num_attention_heads
+
+        self.upcast_attention = upcast_attention
+
+        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
         self.to_k = nn.Linear(cross_attention_dim, inner_dim, bias=False)
         self.to_v = nn.Linear(cross_attention_dim, inner_dim, bias=False)
 
         self.to_out = nn.Sequential(nn.Linear(inner_dim, query_dim), nn.Dropout(dropout))
 
+    def forward(self, x: torch.Tensor, context: torch.Tensor | None = None) -> torch.Tensor:
+        query = self.to_q(x)
+        context = context if context is not None else x
+        key = self.to_k(context)
+        value = self.to_v(context)
+
+        # Multi-Head Attention
+        query = self.reshape_heads_to_batch_dim(query)
+        key = self.reshape_heads_to_batch_dim(key)
+        value = self.reshape_heads_to_batch_dim(value)
+
+        if self.use_flash_attention:
+            x = self._memory_efficient_attention_xformers(query, key, value)
+        else:
+            x = self._attention(query, key, value)
+
+        x = self.reshape_batch_dim_to_heads(x)
+        x = x.to(query.dtype)
+
+        return self.to_out(x)
     
 
 class MedViTBlock(BasicTransformerBlock):
