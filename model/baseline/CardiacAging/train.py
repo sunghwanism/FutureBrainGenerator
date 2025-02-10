@@ -100,7 +100,7 @@ class CropTransform:
     """
     3D MRI 이미지에서 중심을 기준으로 Crop 후 Channel=1을 추가하는 Transform
     """
-    def __init__(self, crop_size=(86, 106, 86)):  # (Depth, Height, Width)
+    def __init__(self, crop_size=(88,108,88)):  # (Depth, Height, Width)
         self.crop_size = crop_size
 
     def __call__(self, image):
@@ -227,7 +227,7 @@ def main():
             dirpath=ckpt_folder,
             filename='model-{epoch:03d}-{train_loss:.2f}',
             save_top_k=10,
-            save_last=False,
+            save_last=True,
             mode='min',
         )
         callbacks = [checkpoint_callback]
@@ -270,7 +270,6 @@ def main():
             gpus=[*gpus], # GPU id to use (can be [1,3] [ids 1 and 3] or [-1] [all])
             max_steps=args.iters, # default is None (not limited)
             logger=loggers,
-            save_last=True,
             accumulate_grad_batches=settings['accumulated_grad_batches'],
             callbacks=callbacks)
 

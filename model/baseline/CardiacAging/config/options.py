@@ -20,7 +20,7 @@ def parse_options():
     '''
     parser = argparse.ArgumentParser(description='PyTorch Example')
     # General options
-    parser.add_argument('--crop_size', default=(86,106,86), type=tuple,
+    parser.add_argument('--crop_size', default=(88,108,88), type=tuple,
                         help='input shape of images')
     parser.add_argument('--wandb', action='store_true', default=False,
                         help='use wandb for logging')
