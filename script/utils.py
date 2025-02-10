@@ -102,10 +102,10 @@ def longitudinal_load_dataloader(config, world_size, rank, train_transform, val_
     
     val_loader = DataLoader(
         ValDataset,
-        batch_size=config.batch_size//2,
+        batch_size=config.batch_size,
         num_workers=config.num_workers,
         pin_memory=True,
-        shuffle=False,
+        shuffle=True,
         drop_last=True,
     )
     

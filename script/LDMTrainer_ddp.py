@@ -183,8 +183,13 @@ def main(config):
 
             torch.save(save_dict, os.path.join(wandb_save_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
             print(f"Model saved at epoch {epoch+1} with noise loss {epoch_loss}")
+            del save_dict
         
         unet_lr_scheduler.step()
+
+        del base_img, follow_img, base_img_z, noise, condition
+        gc.collect()
+        torch.cuda.empty_cache()
 
         if rank == 0 and (((epoch+1) % config.save_img_interval == 0) or (epoch+1) == 1):
             print("Generating Synthetic Images using Validation Dataset...")
