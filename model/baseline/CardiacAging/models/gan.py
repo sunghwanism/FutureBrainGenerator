@@ -169,6 +169,7 @@ class GAN(pl.LightningModule):
         # Cycle-consistency loss
         cyc_loss = self.criterionCycle(reconstr_imgs, x)
         self.log('cyc_loss', cyc_loss, on_epoch=True, prog_bar=False)
+        self.cyc_weight = self.cyc_weight.to(self.device)
         cyc_loss = cyc_loss * self.cyc_weight
 
         # Regularization loss
@@ -249,6 +250,7 @@ class GAN(pl.LightningModule):
         d_loss = d_real_loss + d_fake_loss
         self.log('d_loss_no_gp', d_loss, on_epoch=True, prog_bar=False)
         # d_loss = d_loss + self.gp_weight * (gradient_penalty + gradient_penalty_fake_lb)
+        self.gp_weight = self.gp_weight.to(self.device)
         d_loss = d_loss + self.gp_weight * gradient_penalty
         self.log('d_loss', d_loss, on_epoch=True, prog_bar=True)
         # use the discriminator loss for checkpointing

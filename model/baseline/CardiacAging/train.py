@@ -263,7 +263,13 @@ def main():
             if args.iters <= 10:
                 loggers.append(tb_logger)
 
+        if args.precision == 16:
+            precision = 16
+        else:
+            precision = 32
+
         trainer = pl.Trainer(
+            precision=precision, # 16-bit precision
             deterministic=True,
             default_root_dir=args.outf,
             max_epochs=settings['epochs'],

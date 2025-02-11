@@ -24,6 +24,8 @@ def parse_options():
                         help='input shape of images')
     parser.add_argument('--wandb', action='store_true', default=False,
                         help='use wandb for logging')
+    parser.add_argument('--precision', default=16, type=int,
+                        help='precision of the pytorch lightning model')
 
     parser.add_argument('--dataf', default='/NFS/FutureBrainGen/data/long/down_img_1.7mm', type=str,
                         help='path to studies') ## Manual fix

@@ -7,7 +7,7 @@ EXPERIMENT_PARAMS = {
     'beta1': 0.9, # first moment decay
     'beta2': 0.999, # second moment decay
     'cycle_cons_weight': 1, # Cycle consistency weight in paper
-    'epochs': 300,
+    'epochs': 500,
     'gradient_penalty_weight': 10,
     'initial_filters': 32,
     'input_shape': (96,112,96), # Modified by HG (original : (256,256))

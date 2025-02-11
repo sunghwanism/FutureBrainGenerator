@@ -37,7 +37,7 @@ class RandomFourierFeatures:
 
 
 class OrdinalEncoding:
-    def __init__(self, embedding_size: int = 45):
+    def __init__(self, embedding_size: int = 55):
         self.enc_half_size = embedding_size
         weights = torch.ones((2*self.enc_half_size, 2*self.enc_half_size))
         for i in range(2*self.enc_half_size):
@@ -171,7 +171,7 @@ class TransformerXia(nn.Module):
         super(TransformerXia, self).__init__()
 
         self.args = args
-        self.enc_half_size = 55
+        self.enc_half_size = 128
         self.enc_vec_size = 2 * self.enc_half_size
         weights = torch.ones((2 * self.enc_half_size, 2 * self.enc_half_size))
         for i in range(2 * self.enc_half_size):
