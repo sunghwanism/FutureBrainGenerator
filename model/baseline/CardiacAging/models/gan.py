@@ -176,6 +176,7 @@ class GAN(pl.LightningModule):
         #   To ensure that resulting images are not very different from input images
         reg_loss = self.criterionIdt(generated_imgs, x)
         self.log('reg_loss', reg_loss, on_epoch=True, prog_bar=False)
+        self.reg_weight = self.reg_weight.to(self.device)
         reg_loss = reg_loss * self.reg_weight
 
         # Generator loss
