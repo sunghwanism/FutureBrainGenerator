@@ -30,7 +30,7 @@ def get_run_parser():
                         help='Batch size')
     parser.add_argument('--epochs', type=int, default=500,
                         help='Number of epochs')
-    parser.add_argument('--gen_lr', type=float, default=3e-4,
+    parser.add_argument('--gen_lr', type=float, default=2e-4,
                         help='Generator Learning rate')
     parser.add_argument('--disc_lr', type=float, default=5e-4,
                         help='Discriminator Learning rate')
