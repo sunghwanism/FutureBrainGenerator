@@ -15,6 +15,7 @@ def get_run_parser():
     # Model
     parser.add_argument('--enc_model', type=str,
                         default='ckpt/VQGAN/magic-jazz-1/best_vqvae_model_dim16_reconloss0.053_ep1.pth',
+                        # default='/data/alice6114/encoder/dry-night-3/best_vqvae_model_dim16_reconloss0.008_ep340.pth',
                         help='Encoder File name')
     parser.add_argument('--train_model', type=str, default='LDM',
                         help='Which model to run')
@@ -27,7 +28,7 @@ def get_run_parser():
     # Data
     parser.add_argument('--data_path', type=str,
                         default=f'/NFS/FutureBrainGen/data/long',
-                        # default='/local_datasets/msh2044/long',
+                        # default='/local_datasets/alice6114/long',
                         help='Path to data')
     parser.add_argument('--crop_size',type=int, nargs='+', default=(96, 112, 96),)
     parser.add_argument('--use_transform', action='store_true',)
@@ -68,11 +69,11 @@ def get_run_parser():
     # Save and Log Arguments
     parser.add_argument('--save_path', type=str,
                         default=f'/NFS/FutureBrainGen/ckpt/LDM',
-                        # default='/data/msh2044/results/FutureBrainGen/ckpt/LDM',
+                        # default='/data/alice6114/results/FutureBrainGen/ckpt/LDM',
                         help='Where to save the model')
     parser.add_argument('--save_img_path', type=str,
                         default=f'/NFS/FutureBrainGen/results/LDM/img',
-                        # default='/data/msh2044/results/FutureBrainGen/img/LDM',
+                        # default='/data/alice6114/results/FutureBrainGen/img/LDM',
                         help='Where to save the images')
     parser.add_argument('--save_interval', type=int, default=10,
                         help='How often to save')
