@@ -74,10 +74,10 @@ def get_run_parser():
                         default=f'/NFS/FutureBrainGen/results/LDM/img',
                         # default='/data/msh2044/results/FutureBrainGen/img/LDM',
                         help='Where to save the images')
-    parser.add_argument('--save_interval', type=int, default=1,
+    parser.add_argument('--save_interval', type=int, default=10,
                         help='How often to save')
     
-    parser.add_argument('--save_img_interval', type=int, default=1,
+    parser.add_argument('--save_img_interval', type=int, default=100,
                         help='How often to save images')
     parser.add_argument('--n_example_images', type=float, default=2,
                         help='Validation images')
