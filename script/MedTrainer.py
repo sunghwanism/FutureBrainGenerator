@@ -15,7 +15,6 @@ import gc
 
 from monai.utils import set_determinism, first, optional_import
 
-tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 import wandb
 
 from script.utils import *
@@ -24,6 +23,7 @@ from script.configure.LDMconfig import get_run_parser
 import warnings
 warnings.filterwarnings("ignore")
 
+tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 
 def main(config):
 
@@ -76,7 +76,7 @@ def main(config):
     # Load VQ-VAE model
     VQVAEPATH = os.path.join(config.base_path, config.enc_model)
 
-    EDmodel = load_VQVAE(device, VQVAEPATH, wrap_ddp=False, local_rank=None)
+    EDmodel = load_VQVAE(VQVAEPATH, wrap_ddp=False, local_rank=rank)
     EDmodel.eval()
     
     # Calculate the scale factor of latent space
@@ -128,7 +128,7 @@ def main(config):
             
             base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
             base_img_z = base_img_z * scale_factor
-            base_img_z = base_img_z.to(device) + batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1)
+            base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
             
             optimizer_diff.zero_grad(set_to_none=True)
 
@@ -206,7 +206,7 @@ def main(config):
                 
                 base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
                 base_img_z = base_img_z * scale_factor
-                base_img_z = base_img_z + batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1)
+                base_img_z = base_img_z + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
 
                 noise = torch.randn_like(z).to(device)
                 scheduler.set_timesteps(num_inference_steps=config.timestep)
@@ -260,4 +260,3 @@ if __name__ == "__main__":
     parser = get_run_parser()
     config = parser.parse_args()
     main(config)
-

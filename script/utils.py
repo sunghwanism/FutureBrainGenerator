@@ -16,7 +16,7 @@ from MONAI.generative.networks.nets import VQVAE
 from monai.utils import first
 from MONAI.generative.networks.schedulers import DDPMScheduler, DDIMScheduler
 
-from model.MedUNet import LongLDMmodel
+from model.MedUNet import LongLDMmodel, LongBrainmodel
 from model.inferer import LongLDMInferer
 
 
@@ -131,19 +131,39 @@ def merge_loss_all_rank(loss_list, device, world_size, batch_len):
 
 def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
 
-    unet = LongLDMmodel(
-        spatial_dims=3,
-        in_channels=latent_dim,
-        out_channels=latent_dim,
-        num_res_blocks=config.diff_num_res_blocks,
-        num_channels=config.diff_num_channels,
-        attention_levels=config.diff_attention_levels,
-        cross_attention_dim=cond_size,
-        with_conditioning=True,
-        clinical_condition=config.condition,
-        num_head_channels=config.diff_num_head_channels,
-        transformer_num_layers=config.transformer_num_layer,
-    ).to(device)
+    if config.train_model == 'LDM':
+        unet = LongLDMmodel(
+            spatial_dims=3,
+            in_channels=latent_dim,
+            out_channels=latent_dim,
+            num_res_blocks=config.diff_num_res_blocks,
+            num_channels=config.diff_num_channels,
+            attention_levels=config.diff_attention_levels,
+            cross_attention_dim=cond_size,
+            with_conditioning=True,
+            clinical_condition=config.condition,
+            num_head_channels=config.diff_num_head_channels,
+            transformer_num_layers=config.transformer_num_layer,
+        ).to(device)
+
+    elif config.train_model == 'AdaLDM':
+        assert config.use_AdaIN, "AdaIN must be used for AdaLDM" and config.train_model == 'AdaLDM'
+
+        unet = LongBrainmodel(
+            spatial_dims=3,
+            in_channels=latent_dim,
+            out_channels=latent_dim,
+            num_res_blocks=config.diff_num_res_blocks,
+            num_channels=config.diff_num_channels,
+            attention_levels=config.diff_attention_levels,
+            cross_attention_dim=cond_size,
+            with_conditioning=True,
+            clinical_condition=config.condition,
+            num_head_channels=config.diff_num_head_channels,
+            transformer_num_layers=config.transformer_num_layer,
+            use_AdaIN=True,
+        ).to(device)
+
 
     unet = torch.nn.parallel.DistributedDataParallel(unet, device_ids=[local_rank], 
                                                      output_device=local_rank,)
@@ -151,7 +171,7 @@ def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
     return unet
 
 def generate_Inferer(scheduler, scale_factor, config):
-    if config.train_model == 'LDM':
+    if config.train_model == 'LDM' or config.train_model == 'AdaLDM':
         inferer = LongLDMInferer(scheduler, scale_factor=scale_factor,)
     else:
         raise ValueError(f"Model {config.model} not implemented")

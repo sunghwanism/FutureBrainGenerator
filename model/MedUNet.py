@@ -168,7 +168,6 @@ class LongBrainmodel(nn.Module):
         self.attention_levels = attention_levels
         self.num_head_channels = num_head_channels
         self.with_conditioning = with_conditioning
-        self.use_AdaIN = use_AdaIN
 
         # input
         self.conv_in = Convolution(
@@ -310,6 +309,7 @@ class LongBrainmodel(nn.Module):
         clinical_cond: torch.Tensor = None,
         down_block_additional_residuals: tuple[torch.Tensor] = None,
         mid_block_additional_residual: torch.Tensor = None,
+        use_AdaIN: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -728,6 +728,7 @@ class CrossAttention(nn.Module):
         dropout: float = 0.0,
         upcast_attention: bool = False,
         use_flash_attention: bool = False,
+        use_AdaIN: bool = False,
     ) -> None:
         super().__init__()
         self.use_flash_attention = use_flash_attention
@@ -857,7 +858,7 @@ class BasicTransformerBlock(nn.Module):
             use_flash_attention=use_flash_attention,
         )  # is a self-attention if context is None
         if use_AdaIN:
-            self.norm1 = AadIN(num_channels)
+            self.norm1 = AdaIN(num_channels)
 
         else:
             self.norm1 = nn.LayerNorm(num_channels)
