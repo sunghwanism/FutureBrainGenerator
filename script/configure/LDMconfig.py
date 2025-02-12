@@ -66,8 +66,9 @@ def get_run_parser():
     parser.add_argument('--diff_num_channels', type=int, nargs='+', default=(64, 128, 256),
                         help="List of channel sizes")
     parser.add_argument('--diff_num_res_blocks', type=int, default=(1, 1, 1))
-    parser.add_argument('--diff_num_head_channels', type=int, nargs='+', default=(16, 32, 64),)
-    parser.add_argument('--diff_attention_levels', type=int, nargs='+', default=(1, 1, 1),)
+    parser.add_argument('--diff_num_head_channels', type=int, nargs='+', default=(0, 64, 128),)
+    parser.add_argument('--diff_attention_levels', type=int, nargs='+', default=(0, 1, 1),)
+    parser.add_argument('--transformer_num_layer', type=int, default=1,)
 
     # Save and Log Arguments
     parser.add_argument('--save_path', type=str,

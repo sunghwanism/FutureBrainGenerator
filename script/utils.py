@@ -136,6 +136,7 @@ def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
         with_conditioning=True,
         clinical_condition=config.condition,
         num_head_channels=config.diff_num_head_channels,
+        transformer_num_layer=config.transformer_num_layer,
     ).to(device)
 
     unet = torch.nn.parallel.DistributedDataParallel(unet, device_ids=[local_rank], 
