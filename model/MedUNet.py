@@ -19,7 +19,7 @@ from monai.utils import ensure_tuple_rep
 
 from MONAI.generative.networks.nets.diffusion_model_unet import *
 
-from utils import AadIN
+from model.norm_utils import AadIN
 
 # from MedViT import MediTransformer
 
