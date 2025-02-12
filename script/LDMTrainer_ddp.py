@@ -128,7 +128,7 @@ def main(config):
             
             base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
             base_img_z = base_img_z * scale_factor
-            base_img_z = base_img_z.to(device) + batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1)
+            base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
             
             optimizer_diff.zero_grad(set_to_none=True)
 
@@ -205,7 +205,7 @@ def main(config):
                 
                 base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
                 base_img_z = base_img_z * scale_factor
-                base_img_z = base_img_z + batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1)
+                base_img_z = base_img_z + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
 
                 noise = torch.randn_like(z).to(device)
                 scheduler.set_timesteps(num_inference_steps=config.timestep)
