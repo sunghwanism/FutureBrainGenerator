@@ -4,6 +4,7 @@ Basic blocks for models.
 import torch
 import torch.nn as nn
 from torch.nn.utils.parametrizations import spectral_norm
+import torch.nn.functional as F
 
 
 class ConditionalBatchNorm2d(nn.Module):
@@ -139,7 +140,7 @@ class BasicBlock(nn.Module):
         # Kernel size NxMxD
         self.kernel_size = self.args['kernel_size']
         # Input size
-        self.D, self.H, self.W = self.args.get('input_size', self.args.get('input_shape', (96,112,96)))
+        self.D, self.H, self.W = self.args.get('input_size', self.args.get('input_shape', (84,104,84)))
         # Number of filters
         self.IF = self.args['IF']
         self.OF = self.args['OF']
@@ -264,7 +265,7 @@ class DCB(BasicBlock):
         self.model = nn.Sequential(
             block1,
             block2,
-            nn.MaxPool3d(kernel_size=(2, 2, 2))
+            nn.AvgPool3d(kernel_size=(2, 2, 2))
         )
 
     def forward(self, x):

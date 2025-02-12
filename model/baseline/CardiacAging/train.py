@@ -18,16 +18,19 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback
 
 from monai.data import ImageDataset, ZipDataset, Dataset
-from data.paired_data import AlignedPairedData
-from data.loader import load_dataset, load_segmentation_dset
+from data.loader import load_dataset
 from data.cardiacDataset import cardiacDataset
 from config.options import parse_options
 from models.gan import GAN
 
-from monai.transforms import Transform, Transpose
-# from models.regressor import Regressor
-# from models.classifier import Classifier
-# from models.segmentor import Segmentor
+from monai.transforms import Transform, Transposed
+
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+import nibabel as nib
+import numpy as np
+
+import gc
 
 # os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 log = logging.getLogger("proposed_executor")
@@ -45,56 +48,6 @@ class RowExtractor(Transform):
 
     def __call__(self, index):
         return self.data.iloc[index].to_dict()
-
-import torch
-import torch.nn.functional as F
-import torchvision.transforms as transforms
-import nibabel as nib
-import numpy as np
-
-class MRI3DTransform:
-    """3D MRI 이미지 크기 조정 및 axial slice 변환"""
-    def __init__(self, target_size=(113, 113), depth=4):
-        self.target_size = target_size  # (H, W) 크기 조정
-        self.depth = depth  # axial slice depth 유지
-
-    def __call__(self, img):
-        """
-        img: (D, H, W) 형태의 3D MRI 이미지
-        반환: (1, depth, target_size[0], target_size[1]) 크기로 변환된 이미지
-        """
-        if isinstance(img, nib.Nifti1Image):  # NiFTI 포맷 처리
-            img = img.get_fdata()  # numpy 배열로 변환
-        
-        img = np.array(img, dtype=np.float32)  # NumPy 배열로 변환
-
-        # 🔹 원본 이미지 shape (D, H, W) 출력
-        print(f"[INFO] Original Image Shape: {img.shape}")
-
-        D, H, W = img.shape
-
-        # 중앙에서 depth=4 만큼 axial slice 추출
-        mid_slice = D // 2
-        start_slice = max(mid_slice - self.depth // 2, 0)
-        end_slice = min(mid_slice + self.depth // 2, D)
-
-        img = img[start_slice:end_slice, :, :]  # (depth, H, W)
-
-        # 🔹 변환 후 shape 출력
-        print(f"[INFO] After Axial Slicing Shape: {img.shape}")
-
-        # 크기 조정 (depth 유지, HxW 변경)
-        img = torch.tensor(img).unsqueeze(0)  # (1, depth, H, W)로 변환
-
-        # 🔹 Tensor 변환 확인
-        print(f"[INFO] After ToTensor Shape: {img.shape}")
-
-        img = F.interpolate(img, size=self.target_size, mode='bilinear', align_corners=False)  # 크기 조정
-
-        # 🔹 최종 변환된 이미지 shape 확인
-        print(f"[INFO] Final Resized Image Shape: {img.shape}")
-
-        return img  # (1, depth, target_size[0], target_size[1])
 
 class CropTransform:
     """
@@ -124,17 +77,17 @@ class CropTransform:
         return image
 
 
-
 def main():
     '''Main function.'''
+    torch.autograd.set_detect_anomaly(True)
+    gc.collect()
     torch.cuda.empty_cache()
     args, settings = parse_options()
     settings['working_dir'] = wd
     if settings['task_type'] != 'segmentation':
-        # data_loader = load_dataset 
         data_loader = load_dataset
-    else:
-        data_loader = load_segmentation_dset
+    # else:
+    #     data_loader = load_segmentation_dset
 
     # GPUs to use
     gpus = [0]
@@ -144,82 +97,19 @@ def main():
     ckpt_folder = os.path.join(args.outf, args.name)
     os.makedirs(ckpt_folder, exist_ok=True)
 
-    df = pd.read_csv("/NFS/FutureBrainGen/data/long/long_old_HC_subj_phenotype_splited.csv")
+    use_cols = ["File_name_B", "File_name_F", "Age_B", "Age_F", "Sex", "mode"]
+    df = pd.read_csv("/NFS/FutureBrainGen/data/long/long_old_HC_subj_phenotype_splited.csv", usecols=use_cols)
+
     df['File_name_B'] = df['File_name_B'] + '.gz'
     df['File_name_F'] = df['File_name_F'] + '.gz'
-    train_df = df[df['mode']=='train']
-    val_df = df[df['mode']=='val']
+    # train_df = df[df['mode']=='train']
+    # val_df = df[df['mode']=='val']
     test_df = df[df['mode']=='test']
-    
-    train_files = [os.path.join(args.dataf, f) for f in train_df['File_name_B']]
-    train_labels = train_df['Age_B'].to_numpy()
-    train_data = train_df[['Sex']]
-    train_data.reset_index(inplace=True, drop=True)
-
-    train_files2 = [os.path.join(args.dataf, f) for f in train_df['File_name_F']]
-    train_labels2 = train_df['Age_F'].to_numpy()
-    train_data2 = train_df[['Sex']]
-    train_data2.reset_index(inplace=True, drop=True)
-
-    val_files = [os.path.join(args.dataf, f) for f in val_df['File_name_B']]
-    val_labels = val_df['Age_B'].to_numpy()
-    val_data = val_df[['Sex']]
-    val_data.reset_index(inplace=True, drop=True)
-
-    val_files2 = [os.path.join(args.dataf, f) for f in val_df['File_name_F']]
-    val_labels2 = val_df['Age_F'].to_numpy()
-    val_data2 = val_df[['Sex']]
-    val_data2.reset_index(inplace=True, drop=True)
-
-    # transform = MRI3DTransform(target_size=(137, 113), depth=4)
-    transform = CropTransform(crop_size=args.crop_size)
-
-    train_dset = ImageDataset(train_files, transform=transform, labels=train_labels, reader='NibabelReader')
-    train_data_dset = Dataset(data=list(range(len(train_data))), transform=RowExtractor(train_data))
-    train_dset = ZipDataset([train_dset, train_data_dset])
-
-    train_dset2 = ImageDataset(train_files2, transform=transform, labels=train_labels2, reader='NibabelReader')
-    train_data_dset2 = Dataset(data=list(range(len(train_data2))), transform=RowExtractor(train_data2))
-    train_dset2 = ZipDataset([train_dset2, train_data_dset2])
-
-    val_dset = ImageDataset(val_files, transform=transform, labels=val_labels, reader='NibabelReader')
-    val_data_dset = Dataset(data=list(range(len(val_data))), transform=RowExtractor(val_data))
-    val_dset = ZipDataset([val_dset, val_data_dset])
-
-    val_dset2 = ImageDataset(val_files2, transform=transform, labels=val_labels2, reader='NibabelReader')
-    val_data_dset2 = Dataset(data=list(range(len(val_data2))), transform=RowExtractor(val_data2))
-    val_dset2 = ZipDataset([val_dset2, val_data_dset2])
-
-    train_loader = torch.utils.data.DataLoader(train_dset,
-    batch_size=args.batch_size, shuffle=False,
-    num_workers=args.workers)
-
-    for batch in train_loader:
-            print(type(batch))  # Likely a tuple
-            print(batch[0].shape)  # Image tensor shape
-            print(batch[1])  # Age label
-            print(batch[2])  # Tabular data
-            break
-
-    train_loader2 = torch.utils.data.DataLoader(train_dset2,
-    batch_size=args.batch_size, shuffle=False,
-    num_workers=args.workers)
-
-    val_loader = torch.utils.data.DataLoader(val_dset,
-    batch_size=args.batch_size, shuffle=False,
-    num_workers=args.workers)
-
-    val_loader2 = torch.utils.data.DataLoader(val_dset2,
-    batch_size=args.batch_size, shuffle=False,
-    num_workers=args.workers)
 
     if args.train:
         print('-> Training model', args.name)
         # Data loading code
-        # train_loaders, val_loaders = data_loader(args, settings)
-        
-        train_loader = AlignedPairedData(train_loader, train_loader2, False)
-        val_loader = AlignedPairedData(val_loader, val_loader2, False)
+        train_loader, val_loader = data_loader(args, settings)
 
         checkpoint_callback = ModelCheckpoint(
             monitor='train_loss',
@@ -270,12 +160,14 @@ def main():
 
         trainer = pl.Trainer(
             precision=precision, # 16-bit precision
-            deterministic=True,
+            deterministic=False,
+            accelerator='ddp',
             default_root_dir=args.outf,
             max_epochs=settings['epochs'],
             gpus=[*gpus], # GPU id to use (can be [1,3] [ids 1 and 3] or [-1] [all])
             max_steps=args.iters, # default is None (not limited)
             logger=loggers,
+            # move_metrics_to_cpu=True,
             accumulate_grad_batches=settings['accumulated_grad_batches'],
             callbacks=callbacks)
 

@@ -184,7 +184,7 @@ class TransformerXia(nn.Module):
         self.OF = self.args['OF']
         self.latent_dim = self.args['latent_dim']
         self.num_classes = self.args['num_classes']
-        self.image_size = [96,112,96]
+        self.image_size = self.args['input_shape']
 
         if self.args['encoding'] == 'positive':
             self.encoding_operation = self._vec_to_enc_pve
@@ -200,12 +200,14 @@ class TransformerXia(nn.Module):
         self.enc = nn.Sequential(
             nn.Conv3d(self.IF, self.OF, self.kernel_size, stride=1, padding=1, bias=False),
             nn.BatchNorm3d(self.OF),
+            # nn.LayerNorm([self.OF, self.image_size[0]//2, self.image_size[1]//2, self.image_size[2]//2]),
             nn.ReLU(inplace=True),
             nn.Flatten(),
             # nn.Linear(self.image_size[0] * self.image_size[1] * self.image_size[2] * self.OF, self.latent_dim),
-            nn.Linear(self.image_size[0]*self.image_size[1]*self.image_size[2]*4, self.latent_dim),
+            nn.Linear(self.image_size[0]*self.image_size[1]*self.image_size[2]*2, self.latent_dim),
             nn.Sigmoid(),
             nn.BatchNorm1d(self.latent_dim)
+            # nn.LayerNorm(self.latent_dim)
         )
 
         # Transform a vector through a NN
@@ -213,6 +215,8 @@ class TransformerXia(nn.Module):
             nn.Linear(self.latent_dim + self.enc_vec_size, self.latent_dim),
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(self.latent_dim)
+            
+            # nn.LayerNorm(self.latent_dim)
         )
 
         # Decoder
@@ -375,8 +379,8 @@ class GeneratorXia(nn.Module):
 
         self.dec0 = nn.Sequential(
             nn.Conv2d(self.num_feat, self.num_feat, self.kernel_size, stride=1, padding=1, bias=False),
-            # nn.BatchNorm2d(self.num_feat),
-            nn.LayerNorm([self.num_feat, self.input_shape[0], self.input_shape[1]]),
+            nn.BatchNorm2d(self.num_feat),
+            # nn.LayerNorm([self.num_feat, self.input_shape[0], self.input_shape[1]]),
             self.nonlinearity,
             # nn.ConvTranspose2d(
             #     self.num_feat, self.num_feat, self.kernel_size, stride=1, bias=False),
@@ -1204,6 +1208,7 @@ class GeneratorXiaReduced(nn.Module):
                 self.kernel_size, stride=1, padding=1, bias=False),
             self.nonlinearity,
             nn.BatchNorm3d(self.num_feat),
+            # nn.LayerNorm([self.num_feat, self.input_shape[0], self.input_shape[1], self.input_shape[2]]),
         )
         self.enc2 = DCB({
             'input_size': self.input_shape, 'nonlinearity': self.nonlinearity,
@@ -1216,7 +1221,8 @@ class GeneratorXiaReduced(nn.Module):
             'latent_dim': self.latent_dim,
             'encoding': 'None',
             # 'image_size': 118,
-            'num_classes': self.num_classes}
+            'num_classes': self.num_classes,
+            'input_shape': self.input_shape}
         )
 
         self.dec1 = UCB({
@@ -1226,12 +1232,14 @@ class GeneratorXiaReduced(nn.Module):
         self.dec0 = nn.Sequential(
             nn.Conv3d(self.num_feat, self.num_feat, self.kernel_size, stride=1, bias=False),
             nn.BatchNorm3d(self.num_feat),
+            # nn.LayerNorm([self.num_feat, self.input_shape[0], self.input_shape[1], self.input_shape[2]]),
             self.nonlinearity,
             nn.ConvTranspose3d(
                 self.num_feat, self.num_feat, self.kernel_size, stride=1, bias=False),
             nn.Conv3d(
                 self.num_feat, self.num_feat, self.kernel_size, stride=1, padding=1, bias=False),
             nn.BatchNorm3d(self.num_feat),
+            # nn.LayerNorm([self.num_feat, self.input_shape[0], self.input_shape[1], self.input_shape[2]]),
             nn.Conv3d(
                 self.num_feat, self.n_channels, self.kernel_size, stride=1, padding=1, bias=False)
         )
@@ -1239,22 +1247,15 @@ class GeneratorXiaReduced(nn.Module):
         self.activation = nn.Tanh() if self.use_tanh else nn.Identity()
 
     def forward(self, x, idx):
-        # print('################before gen enc1', x.size())
         enc1 = x
         enc2 = self.enc1(enc1)
-        # print('################after gen enc1', enc2.size())
         enc3 = self.enc2(enc2)
-        # print('################after gen enc2', enc3.size())
         aux = self.trans(enc3, idx)
-        # print('################after trans', aux.size())
         dec2 = torch.cat((aux, enc3), dim=1)
-        # print('################after gen dec2', dec2.size())
         dec1 = self.dec1(dec2, enc2)
-        # print('################after gen dec1', dec1.size())
         _map = self.dec0(dec1)
         output = _map + x
         output = self.activation(output)
-        # print('################after gen output', output.size())
         return output, _map
 
 
@@ -1279,6 +1280,7 @@ class DiscriminatorXiaReduced(nn.Module):
                 self.kernel_size, stride=1, padding=1, bias=False),
             self.nonlinearity,
             nn.BatchNorm3d(self.num_feat),
+            # nn.LayerNorm([self.num_feat, self.input_shape[0], self.input_shape[1], self.input_shape[2]]),
         )
         self.enc2 = DCB({
             'input_size': self.input_shape, 'nonlinearity': self.nonlinearity,
@@ -1293,7 +1295,8 @@ class DiscriminatorXiaReduced(nn.Module):
             'latent_dim': self.latent_dim,
             # 'image_size': 113,
             'encoding': self.args['discr_params']['encoding'],
-            'num_classes': self.num_classes}
+            'num_classes': self.num_classes,
+            'input_shape': self.input_shape}
         )
 
         self.judge = nn.Sequential(

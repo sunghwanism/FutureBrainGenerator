@@ -105,7 +105,7 @@ class GAN(pl.LightningModule):
         # networks
         if self.hparams.reduced:
             if 'input_size' not in kwargs:
-                kwargs['input_size'] = kwargs.get('input_shape', (96,112,96))  # add default
+                kwargs['input_size'] = kwargs.get('input_shape', (84,104,84))  # add default
             self.generator = GeneratorXiaReduced(kwargs)
             self.discriminator = DiscriminatorXiaReduced(kwargs)
         else:
