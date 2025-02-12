@@ -14,8 +14,8 @@ def get_run_parser():
     
     # Model
     parser.add_argument('--enc_model', type=str,
-                        default='ckpt/VQGAN/magic-jazz-1/best_vqvae_model_dim16_reconloss0.053_ep1.pth',
-                        # default='/data/alice6114/encoder/dry-night-3/best_vqvae_model_dim16_reconloss0.008_ep340.pth',
+                        default='ckpt/VQGAN/dry-night-3/best_vqvae_model_dim16_reconloss0.007_ep500.pth',
+                        # default='encoder/dry-night-3/best_vqvae_model_dim16_reconloss0.007_ep500.pth',
                         help='Encoder File name')
     parser.add_argument('--train_model', type=str, default='LDM',
                         help='Which model to run')
@@ -23,6 +23,7 @@ def get_run_parser():
     # BASE
     parser.add_argument('--base_path', type=str, 
                         default=f'/NFS/FutureBrainGen/',
+                        # default='/data/alice6114/
                         )
     
     # Data
