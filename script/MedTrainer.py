@@ -13,9 +13,9 @@ import torch.distributed as dist
 import torchio as tio
 import gc
 
-from monai.utils import set_determinism, first
+from monai.utils import set_determinism, first, optional_import
 
-from tqdm import tqdm
+tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 import wandb
 
 from script.utils import *

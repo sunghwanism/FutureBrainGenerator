@@ -1,5 +1,11 @@
-import torch
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../MONAI')))
+
 import torch.nn as nn
+
 
 class AdaIN(nn.Module):
     def __init__(self, num_features, eps=1e-7):
