@@ -14,8 +14,8 @@ import torchio as tio
 import gc
 
 from monai.utils import set_determinism, first
+from monai.utils import optional_import
 
-from tqdm import tqdm
 import wandb
 
 from script.utils import *
@@ -24,6 +24,8 @@ from script.configure.LDMconfig import get_run_parser
 import warnings
 warnings.filterwarnings("ignore")
 
+
+tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 
 def main(config):
 
