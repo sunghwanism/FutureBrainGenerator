@@ -19,7 +19,7 @@ from monai.utils import ensure_tuple_rep
 
 from MONAI.generative.networks.nets.diffusion_model_unet import *
 
-from model.norm_utils import AadIN
+# from model.norm_utils import AadIN
 
 # from MedViT import MediTransformer
 
@@ -32,6 +32,39 @@ from model.norm_utils import AadIN
 # else:
 xformers = None
 has_xformers = False
+
+
+
+class AdaIN(nn.Module):
+    def __init__(self, num_features, eps=1e-7):
+        """
+        Args:
+            num_features (int): The feature dimension of the content vector (base_img).
+            eps (float): A small constant to prevent division by zero.
+        """
+        super(AdaIN, self).__init__()
+        self.num_features = num_features
+        self.eps = eps
+
+    def forward(self, noise, base_img):
+        """
+        Args:
+            noise (Tensor): Content vector to be normalized, shape (B, num_features).
+            base_img (Tensor): Style vector with the same shape as the content vector,
+                               shape (B, num_features).
+        Returns:
+            out (Tensor): The result after applying AdaIN, shape (B, num_features).
+        """
+        
+        # Compute the per-instance mean and standard deviation for the content vector.
+        style_mean = base_img.mean(dim=1, keepdim=True)  # Shape: (B, 1)
+        style_std  = base_img.std(dim=1, keepdim=True)   # Shape: (B, 1)
+        
+        # Normalize the content vector using instance normalization.
+        normalized = style_std*(noise - noise.mean(dim=1, keepdim=True)) / (noise.std(dim=1, keepdim=True) + self.eps) + style_mean
+        
+        return normalized
+
 
 
 class LongBrainmodel(nn.Module):
@@ -590,6 +623,7 @@ class LongLDMmodel(nn.Module):
         clinical_cond: torch.Tensor = None,
         down_block_additional_residuals: tuple[torch.Tensor] = None,
         mid_block_additional_residual: torch.Tensor = None,
+        use_AdaIN: bool = False,
     ) -> torch.Tensor:
         """
         Args:
