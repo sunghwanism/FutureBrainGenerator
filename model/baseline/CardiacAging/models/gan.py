@@ -189,19 +189,57 @@ class GAN(pl.LightningModule):
         rec_loss = torch.mean(torch.abs(generated_imgs - y))
         self.log('rec_loss', rec_loss, on_epoch=True, prog_bar=True)
 
-        if self.log_images and self.kwargs['data_type'] != '3d':
+        # if self.log_images and self.kwargs['data_type'] != '3d':
+        #     g_ims = generated_imgs.clip(0, 1)
+        #     _map = (_map - _map.median())/2 + 0.5
+        #     _map = _map.clip(0, 1)
+        #     aux = torch.stack(
+        #         (x, _map, g_ims, y), dim=0).reshape(
+        #             4*x.size()[0], x.size()[1], x.size()[2], x.size()[3])
+        #     grid = vutils.make_grid(aux, nrow=x.size()[0])
+        #     self.logger.experiment[0].add_image(
+        #         'example_images_epoch_{}'.format(self.current_epoch), grid, 0)
+        #     self.log_images = False
+        
+        if self.log_images and self.kwargs['data_type'] == '3d' and self.current_epoch % self.hparams.save_freq == 0:
             g_ims = generated_imgs.clip(0, 1)
-            _map = (_map - _map.median())/2 + 0.5
-            _map = _map.clip(0, 1)
-            aux = torch.stack(
-                (x, _map, g_ims, y), dim=0).reshape(
-                    4*x.size()[0], x.size()[1], x.size()[2], x.size()[3])
-            grid = vutils.make_grid(aux, nrow=x.size()[0])
-            self.logger.experiment[0].add_image(
-                'example_images_epoch_{}'.format(self.current_epoch), grid, 0)
-            self.log_images = False
+            results_dir = self.hparams.results_folder
+            results_dir = os.path.join(results_dir, self.hparams.experiment_name, 'at_train')
+            os.makedirs(results_dir, exist_ok=True)
+            samples_dir = os.path.join(results_dir, f'samples_ep{self.current_epoch}')
+            os.makedirs(samples_dir, exist_ok=True)
+            # save images as nii files
+            filename = 'sample{:d}_Age{:d}{}.nii.gz'
+            filename = os.path.join(samples_dir, filename)
 
-        return g_loss
+            for i in range(x.size(0)):
+                # Original image
+                or_im = x[i].cpu().numpy().squeeze()
+                or_im = nib.Nifti1Image(or_im, np.eye(4))
+                nib.save(or_im, filename.format(
+                    i, int(x_lbl[i]), '_original'))
+                
+                # Target image
+                tg_im = y[i].cpu().numpy().squeeze()
+                tg_im = nib.Nifti1Image(tg_im, np.eye(4))
+                nib.save(tg_im, filename.format(
+                    i, int(y_lbl[i]), '_target'))
+
+                # Map image
+                _map = (_map - _map.median())/2 + 0.5
+                _map = _map.clip(0, 1)
+                map_img = _map[i].cpu().detach().numpy().squeeze()
+                map_img = nib.Nifti1Image(map_img, np.eye(4))
+                nib.save(map_img, filename.format(
+                    i, int(y_lbl[i]-x_lbl[i]), '_map'))
+                
+                # Generated image
+                x_fake = g_ims[i].cpu().detach().numpy().squeeze()
+                x_fake = nib.Nifti1Image(x_fake, np.eye(4))
+                nib.save(x_fake, filename.format(
+                    i, int(y_lbl[i]), '_synthetic'))
+
+            self.log_images = False
 
     def discriminator_loss(self, x, y, x_lbl, y_lbl):
         '''

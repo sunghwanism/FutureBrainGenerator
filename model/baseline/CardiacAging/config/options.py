@@ -120,6 +120,8 @@ def parse_options():
                         help='path to latest checkpoint (default: none)')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
+    parser.add_argument('--save_freq', default=10, type=int,
+                        help='frequency of saving model')
     parser.add_argument('--test-batch-size', type=int, default=2, metavar='N',
                         help='input batch size for testing (default: 4)')
     parser.add_argument('--world-size', default=-1, type=int,
@@ -178,6 +180,7 @@ def parse_options():
     exp_settings['batch_size'] = args.batch_size
     exp_settings['results_folder'] = args.resf
     exp_settings['experiment_name'] = args.name
+    exp_settings['save_freq'] = args.save_freq
     if args.view != '':
         exp_settings['view'] = args.view
         # If view is LA, the default subcat is 4ch

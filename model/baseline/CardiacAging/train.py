@@ -22,6 +22,7 @@ from data.loader import load_dataset
 from data.cardiacDataset import cardiacDataset
 from config.options import parse_options
 from models.gan import GAN
+from data.paired_data import AlignedPairedData 
 
 from monai.transforms import Transform, Transposed
 
@@ -182,7 +183,7 @@ def main():
             args.name, args.dataf))
 
         # Find checkpoint and hparams file
-        if os.path.exists(os.path.join(ckpt_folder, 'last.ckpt')):
+        if os.path.exists(os.path.join(ckpt_folder, 'last.ckpt')) and args.epochs == 0:
             ckpt_model = os.path.join(ckpt_folder, 'last.ckpt')
         else:
             ckpt_name = '*-epoch*.ckpt'

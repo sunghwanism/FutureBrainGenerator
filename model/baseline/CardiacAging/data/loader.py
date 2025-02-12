@@ -109,7 +109,7 @@ def load_dataset(args, settings, split_data=True):
     
     def get_dataloader(dataset):
         return torch.utils.data.DataLoader(
-            dataset, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True, persistent_workers=True
+            dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True, persistent_workers=True
         )
 
     train_loader = get_dataloader(train_dset)

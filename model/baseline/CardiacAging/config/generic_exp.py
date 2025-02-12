@@ -16,7 +16,7 @@ EXPERIMENT_PARAMS = {
     'latent_space_dim': LATENT_DIM,
     'learning_rate': 1e-5,  # Learning rate
     'module_name': 'GAN',
-    'ncritic': 5, # Number of training critic (Discriminator updates ncritic*10 times per Generator update)
+    'ncritic': 5, # Number of training critic (Discriminator updates ncritic*10 times per Generator update while warmup)
     'num_classes': 1, # used in deprecated TransformerXia
     'n_channels': 1,
     'optD': 'adamw', # Optimizer for Discriminator
@@ -33,7 +33,7 @@ EXPERIMENT_PARAMS = {
     'use_wclip': False, # not used
     'view': '',
     'nonlinearity': 'relu', # new added by HK
-    'warming_epochs': 1,
+    'warming_epochs': 10,
     'weight_decay': 1e-6,  # Weight decay rate
     'discr_params': {
         'activation': 'relu',
