@@ -31,11 +31,15 @@ The script runs `turboprep` using the `cpu` to simplify setup and avoid addition
 input/files.txt and output/directories.txt each contains MRI file path and output directories matching in order.
 
 example of input.txt :
+
 /path/to/MRI1.nii
+
 /path/to/MRI2.nii
 
 example of output.txt :
+
 /path/to/MRI1_dir
+
 /path/to/MRI2_dir
 
 
