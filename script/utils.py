@@ -35,7 +35,13 @@ def load_confg(config_path):
     return config
 
 
-def load_VQVAE(device, modelpath, wrap_ddp=False, local_rank=None):
+def load_VQVAE(modelpath, wrap_ddp=False, local_rank=None):
+
+
+    if local_rank is not None:
+        device = torch.device(f"cuda:{local_rank}")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     assert os.path.exists(modelpath), f"Model path {modelpath} does not exist"
 
@@ -70,12 +76,12 @@ def load_VQVAE(device, modelpath, wrap_ddp=False, local_rank=None):
             EDmodel, device_ids=[local_rank], output_device=local_rank
         )
 
-    else:
-        # Freeze all the parameters of the VQ-VAE model
-        for param in EDmodel.parameters():
-            param.requires_grad = False
+    # Freeze all the parameters of the VQ-VAE model
+    for param in EDmodel.parameters():
+        param.requires_grad = False
             
     del encoder, encoder_config
+
     gc.collect()
     torch.cuda.empty_cache()
 
