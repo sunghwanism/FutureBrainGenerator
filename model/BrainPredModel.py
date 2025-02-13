@@ -6,19 +6,19 @@ import torch.nn as nn
 def convBlock(in_channels, out_channels, kernel_size=3, stride=1, padding=1, last_block=False):
     if last_block:
         return nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.Conv3d(in_channels, in_channels, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(inplace=True),
             nn.LayerNorm(out_channels),
-            nn.Conv3d(out_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(inplace=True),
             nn.LayerNorm(out_channels),
         )
     else:
         return nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.Conv3d(in_channels, in_channels, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(inplace=True),
             nn.LayerNorm(out_channels),
-            nn.Conv3d(out_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(inplace=True),
             nn.LayerNorm(out_channels),
             nn.MaxPool3d(kernel_size=2, stride=2)
