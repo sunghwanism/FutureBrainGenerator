@@ -84,6 +84,8 @@ def main(config):
         z = EDmodel.encode_stage_2_inputs(first_batch['base_img'].to(device))
     scale_factor = 1 # / torch.std(z)
     
+    B, C, H, W, D = z.shape
+
     base_img_size = z[0].numel()
     latent_dim = z.shape[1]
     
@@ -126,9 +128,8 @@ def main(config):
             follow_img = batch['follow_img'].to(device)
             condition = batch["condition"].to(device)
             
-            base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
-            base_img_z = base_img_z * scale_factor
-            base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
+            base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
+            base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
             
             optimizer_diff.zero_grad(set_to_none=True)
 
@@ -182,7 +183,6 @@ def main(config):
             torch.save(save_dict, os.path.join(wandb_save_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
             print(f"Model saved at epoch {epoch+1} with noise loss {epoch_loss}")
             del save_dict
-            
         if (epoch+1) > config.lr_warmup:
             unet_lr_scheduler.step()
 
@@ -204,9 +204,8 @@ def main(config):
                 follow_img = batch['follow_img'].to(device)
                 condition = batch["condition"].to(device)
                 
-                base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
-                base_img_z = base_img_z * scale_factor
-                base_img_z = base_img_z + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
+                base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
+                base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
 
                 noise = torch.randn_like(z).to(device)
                 scheduler.set_timesteps(num_inference_steps=config.timestep)
