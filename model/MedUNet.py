@@ -33,10 +33,22 @@ from MONAI.generative.networks.nets.diffusion_model_unet import *
 xformers = None
 has_xformers = False
 
+def convBlock(in_channels, out_channels, kernel_size=3, stride=1, padding=1, num_groups=16):
+
+    return nn.Sequential(
+        nn.Conv3d(in_channels, in_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+        nn.ReLU(inplace=True),
+        nn.GroupNorm(num_groups, in_channels),
+        nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+        nn.ReLU(inplace=True),
+        nn.GroupNorm(num_groups, out_channels),
+        nn.MaxPool3d(kernel_size=2, stride=2)
+        )
+
 
 
 class AdaIN(nn.Module):
-    def __init__(self, num_features, eps=1e-7):
+    def __init__(self, in_featuers, num_features, eps=1e-7):
         """
         Args:
             num_features (int): The feature dimension of the content vector (base_img).
@@ -45,6 +57,7 @@ class AdaIN(nn.Module):
         super(AdaIN, self).__init__()
         self.num_features = num_features
         self.eps = eps
+        self.conv = convBlock(in_featuers, num_features, kernel_size=1, stride=1, padding=0)
 
     def forward(self, noise, base_img):
         """
@@ -55,16 +68,17 @@ class AdaIN(nn.Module):
         Returns:
             out (Tensor): The result after applying AdaIN, shape (B, num_features).
         """
-        
+        base_img = self.conv(base_img)
         # Compute the per-instance mean and standard deviation for the content vector.
+        B, C, H, W, D = base_img.size()
+        base_img = base_img.view(B, C, H*W*D).permute(0, 2, 1)
         style_mean = base_img.mean(dim=1, keepdim=True)  # Shape: (B, 1)
         style_std  = base_img.std(dim=1, keepdim=True)   # Shape: (B, 1)
         
         # Normalize the content vector using instance normalization.
         normalized = style_std*(noise - noise.mean(dim=1, keepdim=True)) / (noise.std(dim=1, keepdim=True) + self.eps) + style_mean
-        
         return normalized
-
+    
 
 
 class LongBrainmodel(nn.Module):
@@ -168,7 +182,6 @@ class LongBrainmodel(nn.Module):
         self.attention_levels = attention_levels
         self.num_head_channels = num_head_channels
         self.with_conditioning = with_conditioning
-        self.use_AdaIN = use_AdaIN
 
         # input
         self.conv_in = Convolution(
@@ -202,6 +215,7 @@ class LongBrainmodel(nn.Module):
 
         # down
         self.down_blocks = nn.ModuleList([])
+
         output_channel = num_channels[0]
         for i in range(len(num_channels)):
             input_channel = output_channel
@@ -228,6 +242,7 @@ class LongBrainmodel(nn.Module):
                 dropout_cattn=dropout_cattn,
                 use_AdaIN=use_AdaIN,
             )
+
 
             self.down_blocks.append(down_block)
 
@@ -370,7 +385,7 @@ class LongBrainmodel(nn.Module):
         # Additional residual conections for Controlnets
         if mid_block_additional_residual is not None:
             h = h + mid_block_additional_residual
-        
+
         # 6. up
         for upsample_block in self.up_blocks:
             res_samples = down_block_res_samples[-len(upsample_block.resnets) :]
@@ -623,7 +638,6 @@ class LongLDMmodel(nn.Module):
         clinical_cond: torch.Tensor = None,
         down_block_additional_residuals: tuple[torch.Tensor] = None,
         mid_block_additional_residual: torch.Tensor = None,
-        use_AdaIN: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -857,23 +871,28 @@ class BasicTransformerBlock(nn.Module):
             use_flash_attention=use_flash_attention,
         )  # is a self-attention if context is None
         if use_AdaIN:
-            self.norm1 = AadIN(num_channels)
+            self.norm1 = AdaIN(16, num_channels)
+            self.norm2 = AdaIN(16, num_channels)
+            self.norm3 = AdaIN(16, num_channels)
 
         else:
             self.norm1 = nn.LayerNorm(num_channels)
+            self.norm2 = nn.LayerNorm(num_channels)
+            self.norm3 = nn.LayerNorm(num_channels)
 
-        self.norm2 = nn.LayerNorm(num_channels)
-        self.norm3 = nn.LayerNorm(num_channels)
+        self.use_AdaIN = use_AdaIN
 
     def forward(self, x: torch.Tensor, context: torch.Tensor | None = None) -> torch.Tensor:
-        # 1. Self-Attention
-        x = self.attn1(self.norm1(x)) + x
-        
-        # 2. Cross-Attention
-        x = self.attn2(self.norm2(x), context=context) + x
+        if self.use_AdaIN:
+            x = self.attn1(self.norm1(x, context)) + x
+            x = self.attn2(self.norm2(x, context), context=context.flatten(1).unsqueeze(1)) + x
+            x = self.ff(self.norm3(x, context)) + x
 
-        # 3. Feed-forward
-        x = self.ff(self.norm3(x)) + x
+        else:
+            x = self.attn1(self.norm1(x)) + x
+            x = self.attn2(self.norm2(x), context=context.flatten(1).unsqueeze(1)) + x
+            x = self.ff(self.norm3(x)) + x
+
         return x
 
 

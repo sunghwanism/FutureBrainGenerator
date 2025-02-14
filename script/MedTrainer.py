@@ -15,7 +15,6 @@ import gc
 
 from monai.utils import set_determinism, first, optional_import
 
-tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 import wandb
 
 from script.utils import *
@@ -24,6 +23,7 @@ from script.configure.LDMconfig import get_run_parser
 import warnings
 warnings.filterwarnings("ignore")
 
+tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 
 def main(config):
 
@@ -76,7 +76,7 @@ def main(config):
     # Load VQ-VAE model
     VQVAEPATH = os.path.join(config.base_path, config.enc_model)
 
-    EDmodel = load_VQVAE(device, VQVAEPATH, wrap_ddp=False, local_rank=None)
+    EDmodel = load_VQVAE(VQVAEPATH, wrap_ddp=False, local_rank=rank)
     EDmodel.eval()
     
     # Calculate the scale factor of latent space
@@ -84,6 +84,8 @@ def main(config):
         z = EDmodel.encode_stage_2_inputs(first_batch['base_img'].to(device))
     scale_factor = 1 # / torch.std(z)
     
+    B, C, H, W, D = z.shape
+
     base_img_size = z[0].numel()
     latent_dim = z.shape[1]
     
@@ -93,7 +95,7 @@ def main(config):
     inferer = generate_Inferer(scheduler, scale_factor, config)
     
     optimizer_diff = torch.optim.Adam(params=unet.parameters(), lr=config.unet_lr)
-    unet_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_diff, T_max=50, eta_min=0)
+    unet_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer_diff, gamma=0.999, last_epoch=-1)
     
     config_dict = vars(config)
 
@@ -126,9 +128,8 @@ def main(config):
             follow_img = batch['follow_img'].to(device)
             condition = batch["condition"].to(device)
             
-            base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
-            base_img_z = base_img_z * scale_factor
-            base_img_z = base_img_z.to(device) + batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1)
+            base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
+            base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
             
             optimizer_diff.zero_grad(set_to_none=True)
 
@@ -142,8 +143,7 @@ def main(config):
                                  diffusion_model=unet, noise=noise, timesteps=timesteps,
                                  condition=base_img_z,
                                  clinical_cond=condition,
-                                 mode='crossattn', quantized=True,
-                                 use_AdaIN=config.use_AdaIN)
+                                 mode='crossattn', quantized=True,)
                 
             diff_loss = F.mse_loss(noise_pred.float(), noise.float())
             diff_loss.backward()
@@ -183,8 +183,8 @@ def main(config):
             torch.save(save_dict, os.path.join(wandb_save_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
             print(f"Model saved at epoch {epoch+1} with noise loss {epoch_loss}")
             del save_dict
-        
-        unet_lr_scheduler.step()
+        if (epoch+1) > config.lr_warmup:
+            unet_lr_scheduler.step()
 
         del base_img, follow_img, base_img_z, noise, condition
         gc.collect()
@@ -204,9 +204,8 @@ def main(config):
                 follow_img = batch['follow_img'].to(device)
                 condition = batch["condition"].to(device)
                 
-                base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
-                base_img_z = base_img_z * scale_factor
-                base_img_z = base_img_z + batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1)
+                base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
+                base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
 
                 noise = torch.randn_like(z).to(device)
                 scheduler.set_timesteps(num_inference_steps=config.timestep)
@@ -260,4 +259,3 @@ if __name__ == "__main__":
     parser = get_run_parser()
     config = parser.parse_args()
     main(config)
-
