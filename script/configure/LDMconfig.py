@@ -53,6 +53,8 @@ def get_run_parser():
                         help='Condition for classifier')
     parser.add_argument('--use_AdaIN', action='store_true', default=False,
                         help='Use AdaIN')
+    parser.add_argument('--lr_warmup', type=int, default=100,
+                        help='Learning rate warmup')
     
     # Diffusion Scheduler Arguments
     parser.add_argument('--scheduler', default='ddpm', # or ddim
