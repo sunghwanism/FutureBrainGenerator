@@ -142,8 +142,7 @@ def main(config):
                                  diffusion_model=unet, noise=noise, timesteps=timesteps,
                                  condition=base_img_z,
                                  clinical_cond=condition,
-                                 mode='crossattn', quantized=True,
-                                 use_AdaIN=config.use_AdaIN)
+                                 mode='crossattn', quantized=True,)
                 
             diff_loss = F.mse_loss(noise_pred.float(), noise.float())
             diff_loss.backward()
@@ -183,8 +182,9 @@ def main(config):
             torch.save(save_dict, os.path.join(wandb_save_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
             print(f"Model saved at epoch {epoch+1} with noise loss {epoch_loss}")
             del save_dict
-        
-        unet_lr_scheduler.step()
+            
+        if (epoch+1) > config.lr_warmup:
+            unet_lr_scheduler.step()
 
         del base_img, follow_img, base_img_z, noise, condition
         gc.collect()

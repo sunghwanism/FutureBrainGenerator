@@ -70,7 +70,6 @@ class LongLDMInferer(DiffusionInferer):
         mode: str = "crossattn",
         seg: torch.Tensor | None = None,
         quantized: bool = True,
-        use_AdaIN: bool = False,
     ) -> torch.Tensor:
         """
         Implements the forward pass for a supervised training iteration.
@@ -115,8 +114,7 @@ class LongLDMInferer(DiffusionInferer):
         prediction = diffusion_model(x=noisy_image, 
                                      timesteps=timesteps, 
                                      context=condition,
-                                     clinical_cond=clinical_cond,
-                                     use_AdaIN=use_AdaIN)
+                                     clinical_cond=clinical_cond,)
 
         return prediction
 

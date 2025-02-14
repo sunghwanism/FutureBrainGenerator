@@ -309,7 +309,6 @@ class LongBrainmodel(nn.Module):
         clinical_cond: torch.Tensor = None,
         down_block_additional_residuals: tuple[torch.Tensor] = None,
         mid_block_additional_residual: torch.Tensor = None,
-        use_AdaIN: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -623,7 +622,6 @@ class LongLDMmodel(nn.Module):
         clinical_cond: torch.Tensor = None,
         down_block_additional_residuals: tuple[torch.Tensor] = None,
         mid_block_additional_residual: torch.Tensor = None,
-        use_AdaIN: bool = False,
     ) -> torch.Tensor:
         """
         Args:

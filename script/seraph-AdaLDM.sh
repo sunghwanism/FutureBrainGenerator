@@ -13,6 +13,6 @@
 pwd
 which python
 hostname
-torchrun --nproc_per_node=4 --nnodes=1 --master_port=25175 script/MedTrainer.py --use_transform --num_workers 8 --train_model AdaLDM --use_AdaIN
+torchrun --nproc_per_node=4 --nnodes=1 --master_port=25180 script/MedTrainer.py --use_transform --num_workers 8 --train_model AdaLDM --use_AdaIN
 
 exit 0
