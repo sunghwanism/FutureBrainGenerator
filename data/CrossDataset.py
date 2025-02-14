@@ -8,13 +8,16 @@ import pandas as pd
 
 
 class CrossMRIDataset(Dataset):
-    def __init__(self, config, _type='train', Transform=None): # train, val
+    def __init__(self, config, _type='train', Transform=None, train_model=None): # train, val
         self.imgpath = os.path.join(config.data_path, 'down_img_1.7mm')
         self.config = config
         df = pd.read_csv(os.path.join(config.data_path, 'cross_old_subj_phenotype_splited_v3.csv'))
         self.subj_info = df[df['mode']==_type].copy()
         self.subj_files = self.subj_info['File name'].to_list()
         self.Transform = Transform
+
+        if train_model == 'BrainAge':
+            self.target = self.subj_info['Age'].to_list()
         
         del df
     
@@ -46,5 +49,8 @@ class CrossMRIDataset(Dataset):
         
         if self.Transform is not None:
             img_data = self.Transform(img_data)
+
+        if self.config.train_model == 'BrainAge':
+            return img_data, self.target[idx]
 
         return img_data
