@@ -56,13 +56,14 @@ def main(config):
     #######################################################################################
     if config.use_transform:
         train_transform = tio.Compose([
-            tio.RandomAffine(scales=(0.90, 1.1), p=0.5),
-            tio.RandomAffine(degrees=(0, 10), p=0.5),
-            tio.RandomAffine(translation=(5, 5, 5), p=0.8),
-            tio.RescaleIntensity(out_min_max=(0, 1)),
+            tio.RandomAffine(scales=(0.90, 1.1), p=0.3),
+            tio.RandomAffine(degrees=(0, 10), p=0.3),
+            tio.RandomAffine(translation=(5, 5, 5), p=0.3),
+            
             ])
-        val_transform = tio.Compose([
-            tio.RescaleIntensity(out_min_max=(0, 1)),])
+        # val_transform = tio.Compose([
+        #     tio.RescaleIntensity(out_min_max=(0, 1)),])
+        val_transform = None
     else:
         train_transform = None
         val_transform = None
@@ -95,7 +96,7 @@ def main(config):
     inferer = generate_Inferer(scheduler, scale_factor, config)
     
     optimizer_diff = torch.optim.Adam(params=unet.parameters(), lr=config.unet_lr)
-    unet_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer_diff, gamma=0.999, last_epoch=-1)
+    unet_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_diff, T_max=config.epochs, eta_min=1e-7)
     
     config_dict = vars(config)
 
@@ -183,9 +184,9 @@ def main(config):
             torch.save(save_dict, os.path.join(wandb_save_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
             print(f"Model saved at epoch {epoch+1} with noise loss {epoch_loss}")
             del save_dict
-        if (epoch+1) > config.lr_warmup:
-            unet_lr_scheduler.step()
-
+        
+        unet_lr_scheduler.step()
+        
         del base_img, follow_img, base_img_z, noise, condition
         gc.collect()
         torch.cuda.empty_cache()
@@ -217,7 +218,7 @@ def main(config):
                                                                     clinical_cond=condition,
                                                                     mode='crossattn',
                                                                     save_intermediates=True,
-                                                                    intermediate_steps=200,
+                                                                    intermediate_steps=100,
                                                                     verbose=True,
                                                                     scheduler=scheduler)
 

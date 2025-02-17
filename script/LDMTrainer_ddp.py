@@ -59,10 +59,10 @@ def main(config):
             tio.RandomAffine(scales=(0.90, 1.1), p=0.5),
             tio.RandomAffine(degrees=(0, 10), p=0.5),
             tio.RandomAffine(translation=(5, 5, 5), p=0.8),
-            tio.RescaleIntensity(out_min_max=(0, 1)),
             ])
-        val_transform = tio.Compose([
-            tio.RescaleIntensity(out_min_max=(0, 1)),])
+        # val_transform = tio.Compose([
+        #     tio.RescaleIntensity(out_min_max=(0, 1)),])
+        val_transform = None
     else:
         train_transform = None
         val_transform = None
@@ -217,7 +217,7 @@ def main(config):
                                                                     clinical_cond=condition,
                                                                     mode='crossattn',
                                                                     save_intermediates=True,
-                                                                    intermediate_steps=200,
+                                                                    intermediate_steps=100,
                                                                     verbose=True,
                                                                     scheduler=scheduler)
 

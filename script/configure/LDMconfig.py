@@ -47,14 +47,12 @@ def get_run_parser():
                         help='Batch size')
     parser.add_argument('--epochs', type=int, default=1000,
                         help='Number of epochs')    
-    parser.add_argument('--unet_lr', type=float, default=3e-4,
+    parser.add_argument('--unet_lr', type=float, default=2e-4,
                         help='Generator Learning rate')
     parser.add_argument('--condition', nargs='+', default=['Age', 'Sex'],
                         help='Condition for classifier')
     parser.add_argument('--use_AdaIN', action='store_true', default=False,
                         help='Use AdaIN')
-    parser.add_argument('--lr_warmup', type=int, default=100,
-                        help='Learning rate warmup')
     
     # Diffusion Scheduler Arguments
     parser.add_argument('--scheduler', default='ddpm', # or ddim
