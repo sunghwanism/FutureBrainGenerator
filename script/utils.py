@@ -184,10 +184,15 @@ def generate_scheduler(config):
         if config.schedule_type == 'cosine':
             scheduler = DDPMScheduler(num_train_timesteps=config.timestep, 
                                         schedule=config.schedule_type)
+            
+        if config.schedule_type == 'sigmoid':
+            scheduler = DDPMScheduler(num_train_timesteps=config.timestep, 
+                                      beta_start=config.beta_start, beta_end=config.beta_end,
+                                      schedule='sigmoid_beta', )
         else:
             scheduler = DDPMScheduler(num_train_timesteps=config.timestep, 
-                                beta_start=config.beta_start, beta_end=config.beta_end,
-                                schedule=config.schedule_type) # linear_beta scaled_linear_beta
+                                      beta_start=config.beta_start, beta_end=config.beta_end,
+                                      schedule=config.schedule_type, sig_range=config.sig_range)
             
     elif config.scheduler == 'ddim':
         if config.schedule_type == 'cosine':

@@ -47,7 +47,7 @@ def get_run_parser():
                         help='Batch size')
     parser.add_argument('--epochs', type=int, default=1000,
                         help='Number of epochs')    
-    parser.add_argument('--unet_lr', type=float, default=5e-4,
+    parser.add_argument('--unet_lr', type=float, default=3e-4,
                         help='Generator Learning rate')
     parser.add_argument('--condition', nargs='+', default=['Age', 'Sex'],
                         help='Condition for classifier')
@@ -60,9 +60,10 @@ def get_run_parser():
     parser.add_argument('--scheduler', default='ddpm', # or ddim
                         help='Scheduler')
     parser.add_argument('--schedule_type', type=str, default='linear_beta',)
+    parser.add_argument('--sig_range', type=float, default=6.0,) # Normal range for sigmoid = 6.0
     parser.add_argument('--timestep', type=int, default=1000,)
     parser.add_argument('--beta_start', type=float, default=0.0015,) # 0.0015
-    parser.add_argument('--beta_end', type=float, default=0.0205,) # 0.0195 
+    parser.add_argument('--beta_end', type=float, default=0.0195,) # 0.0195 
 
     # Hyperparameters
     parser.add_argument('--diff_num_channels', type=int, nargs='+', default=(64, 128, 256),
