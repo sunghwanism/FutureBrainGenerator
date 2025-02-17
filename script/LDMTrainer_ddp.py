@@ -93,7 +93,7 @@ def main(config):
     inferer = generate_Inferer(scheduler, scale_factor, config)
     
     optimizer_diff = torch.optim.Adam(params=unet.parameters(), lr=config.unet_lr)
-    unet_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer_diff, gamma=0.999, last_epoch=-1)
+    unet_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_diff, T_max=config.epochs, eta_min=1e-7)
     
     config_dict = vars(config)
 
