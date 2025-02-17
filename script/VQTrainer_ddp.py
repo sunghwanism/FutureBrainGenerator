@@ -121,7 +121,7 @@ def main(config):
         num_channels=32,
         kernel_size=4,
         activation=(Act.LEAKYRELU, {"negative_slope": 0.2, "inplace":False}),
-        norm=("GROUP", {"num_groups": 16, "affine": False}),
+        norm="BATCH",
         bias=False,
     ).to(device)
     
