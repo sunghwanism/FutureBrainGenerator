@@ -188,11 +188,15 @@ def generate_scheduler(config):
         if config.schedule_type == 'sigmoid':
             scheduler = DDPMScheduler(num_train_timesteps=config.timestep, 
                                       beta_start=config.beta_start, beta_end=config.beta_end,
-                                      schedule='sigmoid_beta', )
-        else:
+                                      schedule='sigmoid_beta', 
+                                      sig_range=config.sig_range)
+            
+        elif config.schedule_type == 'linear_beta':
             scheduler = DDPMScheduler(num_train_timesteps=config.timestep, 
                                       beta_start=config.beta_start, beta_end=config.beta_end,
-                                      schedule=config.schedule_type, sig_range=config.sig_range)
+                                      schedule=config.schedule_type)
+        else:
+            raise ValueError(f"Scheduler {config.schedule_type} not implemented")
             
     elif config.scheduler == 'ddim':
         if config.schedule_type == 'cosine':
