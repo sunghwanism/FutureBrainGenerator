@@ -71,6 +71,7 @@ def main(config):
             # tio.RescaleIntensity(out_min_max=(0, 1)),
             ])
         # val_transform = tio.Compose([tio.RescaleIntensity(out_min_max=(0, 1)),])
+        val_transform = None
 
     else:
         train_transform = None
