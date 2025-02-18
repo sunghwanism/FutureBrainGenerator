@@ -16,7 +16,7 @@ from MONAI.generative.networks.nets import VQVAE
 from monai.utils import first
 from MONAI.generative.networks.schedulers import DDPMScheduler, DDIMScheduler
 
-from model.MedUNet import LongLDMmodel
+from model.MedUNet import LongLDMmodel, LongBrainmodel
 from model.inferer import LongLDMInferer
 
 
@@ -35,7 +35,13 @@ def load_confg(config_path):
     return config
 
 
-def load_VQVAE(device, modelpath, wrap_ddp=False, local_rank=None):
+def load_VQVAE(modelpath, wrap_ddp=False, local_rank=None):
+
+
+    if local_rank is not None:
+        device = torch.device(f"cuda:{local_rank}")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     assert os.path.exists(modelpath), f"Model path {modelpath} does not exist"
 
@@ -70,12 +76,12 @@ def load_VQVAE(device, modelpath, wrap_ddp=False, local_rank=None):
             EDmodel, device_ids=[local_rank], output_device=local_rank
         )
 
-    else:
-        # Freeze all the parameters of the VQ-VAE model
-        for param in EDmodel.parameters():
-            param.requires_grad = False
+    # Freeze all the parameters of the VQ-VAE model
+    for param in EDmodel.parameters():
+        param.requires_grad = False
             
     del encoder, encoder_config
+
     gc.collect()
     torch.cuda.empty_cache()
 
@@ -88,6 +94,7 @@ def longitudinal_load_dataloader(config, world_size, rank, train_transform, val_
     ValDataset = LongitudinalDataset(config, _type='val', Transform=val_transform)
     
     train_sampler = DistributedSampler(TrainDataset, num_replicas=world_size, rank=rank)
+    val_sampler = DistributedSampler(ValDataset, num_replicas=world_size, rank=rank)
 
     train_loader = DataLoader(
         TrainDataset,
@@ -102,10 +109,10 @@ def longitudinal_load_dataloader(config, world_size, rank, train_transform, val_
     
     val_loader = DataLoader(
         ValDataset,
-        batch_size=config.batch_size//2,
+        batch_size=config.batch_size,
         num_workers=config.num_workers,
         pin_memory=True,
-        shuffle=False,
+        sampler=val_sampler,
         drop_last=True,
     )
     
@@ -124,18 +131,39 @@ def merge_loss_all_rank(loss_list, device, world_size, batch_len):
 
 def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
 
-    unet = LongLDMmodel(
-        spatial_dims=3,
-        in_channels=latent_dim,
-        out_channels=latent_dim,
-        num_res_blocks=config.diff_num_res_blocks,
-        num_channels=config.diff_num_channels,
-        attention_levels=config.diff_attention_levels,
-        cross_attention_dim=cond_size,
-        with_conditioning=True,
-        clinical_condition=config.condition,
-        num_head_channels=config.diff_num_head_channels,
-    ).to(device)
+    if config.train_model == 'LDM':
+        unet = LongLDMmodel(
+            spatial_dims=3,
+            in_channels=latent_dim,
+            out_channels=latent_dim,
+            num_res_blocks=config.diff_num_res_blocks,
+            num_channels=config.diff_num_channels,
+            attention_levels=config.diff_attention_levels,
+            cross_attention_dim=cond_size,
+            with_conditioning=True,
+            clinical_condition=config.condition,
+            num_head_channels=config.diff_num_head_channels,
+            transformer_num_layers=config.transformer_num_layer,
+        ).to(device)
+
+    elif config.train_model == 'AdaLDM':
+        assert config.use_AdaIN, "AdaIN must be used for AdaLDM" and config.train_model == 'AdaLDM'
+
+        unet = LongBrainmodel(
+            spatial_dims=3,
+            in_channels=latent_dim,
+            out_channels=latent_dim,
+            num_res_blocks=config.diff_num_res_blocks,
+            num_channels=config.diff_num_channels,
+            attention_levels=config.diff_attention_levels,
+            cross_attention_dim=cond_size,
+            with_conditioning=True,
+            clinical_condition=config.condition,
+            num_head_channels=config.diff_num_head_channels,
+            transformer_num_layers=config.transformer_num_layer,
+            use_AdaIN=True,
+        ).to(device)
+
 
     unet = torch.nn.parallel.DistributedDataParallel(unet, device_ids=[local_rank], 
                                                      output_device=local_rank,)
@@ -143,7 +171,7 @@ def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
     return unet
 
 def generate_Inferer(scheduler, scale_factor, config):
-    if config.train_model == 'LDM':
+    if config.train_model == 'LDM' or config.train_model == 'AdaLDM':
         inferer = LongLDMInferer(scheduler, scale_factor=scale_factor,)
     else:
         raise ValueError(f"Model {config.model} not implemented")
@@ -156,10 +184,15 @@ def generate_scheduler(config):
         if config.schedule_type == 'cosine':
             scheduler = DDPMScheduler(num_train_timesteps=config.timestep, 
                                         schedule=config.schedule_type)
+            
+        if config.schedule_type == 'sigmoid':
+            scheduler = DDPMScheduler(num_train_timesteps=config.timestep, 
+                                      beta_start=config.beta_start, beta_end=config.beta_end,
+                                      schedule='sigmoid_beta', )
         else:
             scheduler = DDPMScheduler(num_train_timesteps=config.timestep, 
-                                beta_start=config.beta_start, beta_end=config.beta_end,
-                                schedule=config.schedule_type) # linear_beta scaled_linear_beta
+                                      beta_start=config.beta_start, beta_end=config.beta_end,
+                                      schedule=config.schedule_type, sig_range=config.sig_range)
             
     elif config.scheduler == 'ddim':
         if config.schedule_type == 'cosine':

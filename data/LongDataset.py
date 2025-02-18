@@ -31,7 +31,7 @@ class LongitudinalDataset(Dataset):
         self.imgpath = os.path.join(config.data_path, 'down_img_1.7mm')
         self.config = config
         df = pd.read_csv(os.path.join(config.data_path, 'long_old_HC_subj_phenotype_splited.csv'))
-        self.subj_info = df[df['mode']==_type].copy()
+        self.subj_info = df[df['mode']==_type].copy().reset_index()
         self.subj_info['Sex'] = self.subj_info['Sex'] - 1 # Sex is 1 or 2, change to 0 or 1
         self.Transform = Transform
 
@@ -51,7 +51,7 @@ class LongitudinalDataset(Dataset):
         follow_img = nib.load(os.path.join(self.imgpath, self.subj_info['File_name_F'].iloc[idx]+".gz"))
         follow_img = follow_img.get_fdata()
 
-        condition = self.subj_info.loc[idx, ['Age_B', 'Sex']].values.astype(float)
+        condition = self.subj_info.loc[idx, ['Age_B', 'Sex', 'Interval']].values.astype(float) # Interval should be last column
         interval = self.subj_info['Interval'].iloc[idx]
         
         # Convert the numpy array to a PyTorch tensor
@@ -64,8 +64,8 @@ class LongitudinalDataset(Dataset):
         
         if self.Transform is not None:
             subject = tio.Subject(
-                base_img=tio.ScalarImage(tensor=base_img, affine=np.eye(4)),
-                follow_img=tio.ScalarImage(tensor=follow_img, affine=np.eye(4))
+                base_img=tio.ScalarImage(tensor=base_img),
+                follow_img=tio.ScalarImage(tensor=follow_img)
             )
             subject = self.Transform(subject)
             base_img = subject['base_img'].data

@@ -68,10 +68,11 @@ def main(config):
             tio.RandomAffine(scales=(0.90, 1.1), p=0.5),
             tio.RandomAffine(degrees=(0, 10), p=0.5),
             tio.RandomAffine(translation=(5, 5, 5), p=0.5),
-            tio.RescaleIntensity(out_min_max=(0, 1)),
+            # tio.RescaleIntensity(out_min_max=(0, 1)),
             ])
-        val_transform = tio.Compose([
-            tio.RescaleIntensity(out_min_max=(0, 1)),])
+        # val_transform = tio.Compose([tio.RescaleIntensity(out_min_max=(0, 1)),])
+        val_transform = None
+
     else:
         train_transform = None
         val_transform = None
@@ -139,8 +140,8 @@ def main(config):
     optimizer_g = torch.optim.Adam(model.parameters(), lr=config.gen_lr)
     optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=config.disc_lr)
 
-    scheduler_g = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_g, T_max=30, eta_min=0)
-    scheduler_d = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_d, T_max=30, eta_min=0)
+    scheduler_g = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_g, T_max=config.epochs, eta_min=0)
+    scheduler_d = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_d, T_max=config.epochs, eta_min=0)
     
     for epoch in range(config.epochs):
         

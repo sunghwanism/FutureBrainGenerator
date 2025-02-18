@@ -114,7 +114,7 @@ class LongLDMInferer(DiffusionInferer):
         prediction = diffusion_model(x=noisy_image, 
                                      timesteps=timesteps, 
                                      context=condition,
-                                     clinical_cond=clinical_cond)
+                                     clinical_cond=clinical_cond,)
 
         return prediction
 

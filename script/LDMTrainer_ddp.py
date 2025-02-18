@@ -13,10 +13,8 @@ import torch.distributed as dist
 import torchio as tio
 import gc
 
-from monai.config import print_config
-from monai.utils import set_determinism
+from monai.utils import set_determinism, first, optional_import
 
-from tqdm import tqdm
 import wandb
 
 from script.utils import *
@@ -25,6 +23,7 @@ from script.configure.LDMconfig import get_run_parser
 import warnings
 warnings.filterwarnings("ignore")
 
+tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 
 def main(config):
 
@@ -47,8 +46,7 @@ def main(config):
         if not os.path.exists(wandb_save_path):
             os.makedirs(wandb_save_path)
         if not os.path.exists(wandb_img_path):
-            os.makedirs(wandb_img_path)
-    
+            os.makedirs(wandb_img_path)  
     if local_rank == 0:
         print("******"*20)
         print(config)
@@ -78,7 +76,7 @@ def main(config):
     # Load VQ-VAE model
     VQVAEPATH = os.path.join(config.base_path, config.enc_model)
 
-    EDmodel = load_VQVAE(device, VQVAEPATH, wrap_ddp=False, local_rank=None)
+    EDmodel = load_VQVAE(VQVAEPATH, wrap_ddp=False, local_rank=rank)
     EDmodel.eval()
     
     # Calculate the scale factor of latent space
@@ -95,7 +93,7 @@ def main(config):
     inferer = generate_Inferer(scheduler, scale_factor, config)
     
     optimizer_diff = torch.optim.Adam(params=unet.parameters(), lr=config.unet_lr)
-    unet_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_diff, T_max=50, eta_min=0)
+    unet_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_diff, T_max=config.epochs, eta_min=1e-7)
     
     config_dict = vars(config)
 
@@ -130,7 +128,7 @@ def main(config):
             
             base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
             base_img_z = base_img_z * scale_factor
-            base_img_z = base_img_z.to(device) + batch['interval'].to(device)
+            base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
             
             optimizer_diff.zero_grad(set_to_none=True)
 
@@ -183,8 +181,13 @@ def main(config):
 
             torch.save(save_dict, os.path.join(wandb_save_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
             print(f"Model saved at epoch {epoch+1} with noise loss {epoch_loss}")
+            del save_dict
         
         unet_lr_scheduler.step()
+
+        del base_img, follow_img, base_img_z, noise, condition
+        gc.collect()
+        torch.cuda.empty_cache()
 
         if rank == 0 and (((epoch+1) % config.save_img_interval == 0) or (epoch+1) == 1):
             print("Generating Synthetic Images using Validation Dataset...")
@@ -194,62 +197,63 @@ def main(config):
             val_loss = 0
 
             with torch.no_grad():
-                for idx, batch in enumerate(val_loader):
-                    base_img = batch['base_img'].to(device)
-                    follow_img = batch['follow_img'].to(device)
-                    condition = batch["condition"].to(device)
-                    
-                    base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
-                    base_img_z = base_img_z * scale_factor
-                    base_img_z = base_img_z + batch['interval'].to(device)
-
-                    noise = torch.randn_like(z).to(device)
-                    scheduler.set_timesteps(num_inference_steps=config.timestep)
-
-                    synthetic_images, intermediate_img = inferer.sample(input_noise=noise, 
-                                                                        autoencoder_model=EDmodel,
-                                                                        diffusion_model=unet,
-                                                                        conditioning=base_img_z,
-                                                                        clinical_cond=condition,
-                                                                        mode='crossattn',
-                                                                        save_intermediates=True if idx == 0 else False,
-                                                                        intermediate_steps=200,
-                                                                        verbose=True,
-                                                                        scheduler=scheduler)
-
-                    recons_loss = F.l1_loss(synthetic_images.float(), follow_img.float())
-                    val_loss += recons_loss.item()
-
-                    if idx == 0:
-                        intermediate_img = [img.detach().cpu().numpy() for img in intermediate_img]
-                        intermediate_img = np.array(intermediate_img)
-
-                        save_img_dict = {
-                            "epoch": epoch+1,
-                            'follow_img': follow_img[:config.n_example_images],
-                            "base_img": base_img[:config.n_example_images],
-                            "synthetic_images": synthetic_images[:config.n_example_images],
-                            'intermediate_img': intermediate_img[:, :config.n_example_images],
-                            'condition': condition[:config.n_example_images],
-                            'Sex': batch['Sex'][:config.n_example_images],
-                            'Age_F': batch['Age_F'][:config.n_example_images],
-                            'Age_B': batch['Age_B'][:config.n_example_images],
-                        }
-
-                    torch.save(save_img_dict, os.path.join(wandb_img_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
+                batch = first(val_loader)
                 
-                epoch_val_loss = merge_loss_all_rank([val_loss], device, world_size, len(val_loader))
+                base_img = batch['base_img'].to(device)
+                follow_img = batch['follow_img'].to(device)
+                condition = batch["condition"].to(device)
                 
-                # Log to wandb
-                if rank == 0 and not config.nowandb:
-                    wandb.log({
-                        "epoch": epoch+1,
-                        "val_recon_loss": epoch_val_loss,
-                    })
+                base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
+                base_img_z = base_img_z * scale_factor
+                base_img_z = base_img_z + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
+
+                noise = torch.randn_like(z).to(device)
+                scheduler.set_timesteps(num_inference_steps=config.timestep)
+
+                synthetic_images, intermediate_img = inferer.sample(input_noise=noise, 
+                                                                    autoencoder_model=EDmodel,
+                                                                    diffusion_model=unet,
+                                                                    conditioning=base_img_z,
+                                                                    clinical_cond=condition,
+                                                                    mode='crossattn',
+                                                                    save_intermediates=True,
+                                                                    intermediate_steps=200,
+                                                                    verbose=True,
+                                                                    scheduler=scheduler)
+
+                recons_loss = F.l1_loss(synthetic_images.float(), follow_img.float())
+                val_loss += recons_loss.item()
+
+                intermediate_img = [img.detach().cpu().numpy() for img in intermediate_img]
+                intermediate_img = np.array(intermediate_img)
+
+                save_img_dict = {
+                    "epoch": epoch+1,
+                    'follow_img': follow_img[:config.n_example_images],
+                    "base_img": base_img[:config.n_example_images],
+                    "synthetic_images": synthetic_images[:config.n_example_images],
+                    'intermediate_img': intermediate_img[:, :config.n_example_images],
+                    'condition': condition[:config.n_example_images],
+                    'Sex': batch['Sex'][:config.n_example_images],
+                    'Age_F': batch['Age_F'][:config.n_example_images],
+                    'Age_B': batch['Age_B'][:config.n_example_images],
+                }
+
+                torch.save(save_img_dict, os.path.join(wandb_img_path, f"{config.train_model}_ep{epoch+1}_dim{latent_dim}_{wandb.run.name}.pth"))
+            
+                # epoch_val_loss = merge_loss_all_rank([val_loss], device, world_size, len(val_loader))
+                
+                # # Log to wandb
+                # if rank == 0 and not config.nowandb:
+                #     wandb.log({
+                #         "epoch": epoch+1,
+                #         "val_recon_loss": epoch_val_loss,
+                #     })
 
             del save_img_dict, intermediate_img, synthetic_images, base_img, follow_img, base_img_z, noise, condition
             gc.collect()
             torch.cuda.empty_cache()
+            print("Finish generating synthetic images")
             
 if __name__ == "__main__":
     parser = get_run_parser()
