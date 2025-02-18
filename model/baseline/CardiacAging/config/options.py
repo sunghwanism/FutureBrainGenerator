@@ -20,10 +20,12 @@ def parse_options():
     '''
     parser = argparse.ArgumentParser(description='PyTorch Example')
     # General options
-    parser.add_argument('--crop_size', default=(88,108,88), type=tuple,
+    parser.add_argument('--crop_size', default=(86,106,86), type=tuple,
                         help='input shape of images')
     parser.add_argument('--wandb', action='store_true', default=False,
                         help='use wandb for logging')
+    parser.add_argument('--precision', default=32, type=int,
+                        help='precision of the pytorch lightning model')
 
     parser.add_argument('--dataf', default='/NFS/FutureBrainGen/data/long/down_img_1.7mm', type=str,
                         help='path to studies') ## Manual fix
@@ -33,11 +35,11 @@ def parse_options():
                         help='path to csv dataset') ## Manual fix
     parser.add_argument('--tg_dataset', default='', type=str,
                         help='path to csv dataset used as target')
-    parser.add_argument('-m', '--model_name', dest='model_name',
-                        choices=model_names, default='vgg11_bn',
-                        help='model architecture: ' +
-                            ' | '.join(model_names) +
-                            ' (default: vgg11_bn)')
+    # parser.add_argument('-m', '--model_name', dest='model_name',
+    #                     choices=model_names, default='vgg11_bn',
+    #                     help='model architecture: ' +
+    #                         ' | '.join(model_names) +
+    #                         ' (default: vgg11_bn)')
     parser.add_argument('-b', '--batch-size', default=2, type=int,
                         metavar='N',
                         help='mini-batch size (default: 8), this is the total '
@@ -99,7 +101,7 @@ def parse_options():
                         help='distributed backend')
     parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                         help='evaluate model on validation set')
-    parser.add_argument('-j', '--workers', default=0, type=int, metavar='N',
+    parser.add_argument('-j', '--workers', default=5, type=int, metavar='N',
                         help='number of data loading workers (default: 4)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
@@ -118,6 +120,8 @@ def parse_options():
                         help='path to latest checkpoint (default: none)')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
+    parser.add_argument('--save_freq', default=10, type=int,
+                        help='frequency of saving model')
     parser.add_argument('--test-batch-size', type=int, default=2, metavar='N',
                         help='input batch size for testing (default: 4)')
     parser.add_argument('--world-size', default=-1, type=int,
@@ -172,10 +176,11 @@ def parse_options():
     # example and overwrite the default value.
     # We'll need to save also these settings.
     exp_settings['learning_rate'] = args.lr
-    exp_settings['model_name'] = args.model_name
+    # exp_settings['model_name'] = args.model_name
     exp_settings['batch_size'] = args.batch_size
     exp_settings['results_folder'] = args.resf
     exp_settings['experiment_name'] = args.name
+    exp_settings['save_freq'] = args.save_freq
     if args.view != '':
         exp_settings['view'] = args.view
         # If view is LA, the default subcat is 4ch
@@ -183,8 +188,10 @@ def parse_options():
             exp_settings['subcat'] = args.subcat
     if 'accumulated_grad_batches' not in exp_settings.keys():
         exp_settings['accumulated_grad_batches'] = 1
-    if 'warmup_epochs' not in exp_settings.keys():
-        exp_settings['warmup_epochs'] = 20
+    if 'warming_epochs' not in exp_settings.keys():
+        exp_settings['warmup_epochs'] = 5
+    if 'warming_epochs' not in exp_settings.keys():
+        exp_settings['warmup_epochs'] = exp_settings['warming_epochs']
     if 'scheduler' not in exp_settings.keys():
         exp_settings['scheduler'] = None
     if 'optimizer' not in exp_settings.keys():

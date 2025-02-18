@@ -1,5 +1,6 @@
 '''Configuration template for a generic experiment'''
-LATENT_DIM = 130
+LATENT_DIM = 320 # 130
+SHAPE = (86,106,86) # (256,256,256)
 
 EXPERIMENT_PARAMS = {
     # 'augment': True,  # Use data augmentation
@@ -7,15 +8,15 @@ EXPERIMENT_PARAMS = {
     'beta1': 0.9, # first moment decay
     'beta2': 0.999, # second moment decay
     'cycle_cons_weight': 1, # Cycle consistency weight in paper
-    'epochs': 300,
+    'epochs': 500,
     'gradient_penalty_weight': 10,
-    'initial_filters': 32,
-    'input_shape': (88,108,88), # Modified by HG (original : (256,256))
+    'initial_filters': 16,
+    'input_shape': SHAPE, # Modified by HG (original : (256,256))
     'kernel_size': (3, 3, 3),
     'latent_space_dim': LATENT_DIM,
     'learning_rate': 1e-4,  # Learning rate
     'module_name': 'GAN',
-    'ncritic': 5, # Number of training critic (Discriminator updates ncritic*10 times per Generator update)
+    'ncritic': 5, # Number of training critic (Discriminator updates ncritic*10 times per Generator update while warmup)
     'num_classes': 1, # used in deprecated TransformerXia
     'n_channels': 1,
     'optD': 'adamw', # Optimizer for Discriminator
@@ -32,29 +33,29 @@ EXPERIMENT_PARAMS = {
     'use_wclip': False, # not used
     'view': '',
     'nonlinearity': 'relu', # new added by HK
-    'warming_epochs': 20,
-    'weight_decay': 1e-4,  # Weight decay rate
+    'warming_epochs': 3,
+    'weight_decay': 1e-5,  # Weight decay rate
     'discr_params': {
         'activation': 'relu',
         'latent_space': LATENT_DIM,
-        'depth': 5,
+        # 'depth': 3,
         'encoding': 'both',
-        'input_shape': (88,108,88),
+        'input_shape': SHAPE,
         'model': 'DiscriminatorXia',
         'name': 'discriminator',
         'norm': 'batchnorm',
-        'initial_filters': 32,
+        'initial_filters': 16,
     },
     'gen_params': {
         'activation': 'relu',
         'latent_space': LATENT_DIM,
-        'depth': 4,
+        # 'depth': 4,
         'encoding': 'both',
-        'input_shape': (88,108,88),
+        'input_shape': SHAPE,
         'model': 'GeneratorXia',
         'name': 'generator',
-        'norm': 'layernorm',
-        'initial_filters': 32,
+        'norm': 'batchnorm',
+        'initial_filters': 16,
         'G_activation': 'linear'
     }
 }
