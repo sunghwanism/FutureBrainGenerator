@@ -28,7 +28,7 @@ def crop_img(img, crop_size):
 
 class LongitudinalDataset(Dataset):
     def __init__(self, config, _type='train', Transform=None):
-        self.imgpath = os.path.join(config.data_path, 'down_img_1.7mm')
+        self.imgpath = os.path.join(config.data_path, 'down_img_2mm')
         self.config = config
         df = pd.read_csv(os.path.join(config.data_path, 'long_old_HC_subj_phenotype_splited.csv'))
         self.subj_info = df[df['mode']==_type].copy().reset_index()

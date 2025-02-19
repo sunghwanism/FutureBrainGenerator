@@ -189,7 +189,7 @@ def main(config):
         gc.collect()
         torch.cuda.empty_cache()
 
-        if rank == 0 and (((epoch+1) % config.save_img_interval == 0) or (epoch+1) == 1):
+        if rank == 0 and ((epoch+1) % config.save_img_interval == 0) :
             print("Generating Synthetic Images using Validation Dataset...")
 
             unet.eval()
@@ -217,12 +217,12 @@ def main(config):
                                                                     clinical_cond=condition,
                                                                     mode='crossattn',
                                                                     save_intermediates=True,
-                                                                    intermediate_steps=100,
+                                                                    intermediate_steps=config.timestep//20,
                                                                     verbose=True,
                                                                     scheduler=scheduler)
 
-                recons_loss = F.l1_loss(synthetic_images.float(), follow_img.float())
-                val_loss += recons_loss.item()
+                # recons_loss = F.l1_loss(synthetic_images.float(), follow_img.float())
+                # val_loss += recons_loss.item()
 
                 intermediate_img = [img.detach().cpu().numpy() for img in intermediate_img]
                 intermediate_img = np.array(intermediate_img)

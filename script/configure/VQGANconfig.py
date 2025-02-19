@@ -16,7 +16,7 @@ def get_run_parser():
                         default=f'/NFS/FutureBrainGen/data/cross',
                         # default='/local_datasets/msh2044/cross',
                         help='Path to data')
-    parser.add_argument('--crop_size',type=int, nargs='+', default=(96, 112, 96),)
+    parser.add_argument('--crop_size',type=int, nargs='+', default=(80, 96, 80),) # 1.7mm (96, 112, 96) // 2mm (80, 96, 80)
     parser.add_argument('--use_transform', action='store_true',)
     
     # Device Arguments
