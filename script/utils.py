@@ -16,7 +16,7 @@ from MONAI.generative.networks.nets import VQVAE
 from monai.utils import first
 from MONAI.generative.networks.schedulers import DDPMScheduler, DDIMScheduler
 
-from model.MedUNet import LongLDMmodel, LongBrainmodel, AdaBrainLDM, DDPMBrainNet
+from model.MedUNet import LongLDMmodel, LongBrainmodel, AdaBrainLDM
 from model.inferer import LongLDMInferer, BrainDDPMInferer
 
 
