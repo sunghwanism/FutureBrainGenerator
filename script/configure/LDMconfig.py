@@ -59,7 +59,7 @@ def get_run_parser():
                         help='Scheduler')
     parser.add_argument('--schedule_type', type=str, default='sigmoid',) # linear_beta or sigmoid
     parser.add_argument('--sig_range', type=float, default=6.0,) # Normal range for sigmoid = 6.0
-    parser.add_argument('--timestep', type=int, default=100,)
+    parser.add_argument('--timestep', type=int, default=500,)
     parser.add_argument('--beta_start', type=float, default=0.0015,) # 0.0015
     parser.add_argument('--beta_end', type=float, default=0.0205,) # 0.0195
 

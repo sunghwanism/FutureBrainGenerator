@@ -33,7 +33,7 @@ from MONAI.generative.networks.nets.diffusion_model_unet import *
 xformers = None
 has_xformers = False
 
-def convBlock(in_channels, out_channels, kernel_size=3, stride=1, padding=1, num_groups=16):
+def convBlock(in_channels, out_channels, kernel_size=3, stride=1, padding=1, num_groups=4):
 
     return nn.Sequential(
         nn.Conv3d(in_channels, in_channels, kernel_size=kernel_size, stride=stride, padding=padding),
@@ -1192,9 +1192,9 @@ class BasicTransformerBlock(nn.Module):
             use_flash_attention=use_flash_attention,
         )  # is a self-attention if context is None
         if use_AdaIN:
-            self.norm1 = AdaIN(16, num_channels)
-            self.norm2 = AdaIN(16, num_channels)
-            self.norm3 = AdaIN(16, num_channels)
+            self.norm1 = AdaIN(8, num_channels)
+            self.norm2 = AdaIN(8, num_channels)
+            self.norm3 = AdaIN(8, num_channels)
 
         else:
             self.norm1 = nn.LayerNorm(num_channels)
