@@ -177,8 +177,7 @@ def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
                             transformer_num_layers=config.transformer_num_layer,
                             cross_attention_dim=cond_size,
                             clinical_condition=config.condition,
-
-    )
+                            ).to(device)
     
     elif config.train_model == 'AdaDDPM':
         unet = AdaBrainLDM(
@@ -207,7 +206,7 @@ def generate_Inferer(scheduler, scale_factor, config):
         inferer = LongLDMInferer(scheduler, scale_factor=scale_factor,)
 
     elif config.train_model == 'DDPM' or config.train_model == 'AdaDDPM':
-        inferer = BrainDDPMInferer(scheduler, scale_factor=scale_factor,)
+        inferer = BrainDDPMInferer(scheduler)
     else:
         raise ValueError(f"Model {config.model} not implemented")
 
