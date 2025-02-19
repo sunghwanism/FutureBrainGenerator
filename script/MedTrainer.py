@@ -130,7 +130,7 @@ def main(config):
             condition = batch["condition"].to(device)
             
             base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
-            base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
+            # base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
             
             optimizer_diff.zero_grad(set_to_none=True)
 
@@ -206,7 +206,7 @@ def main(config):
                 condition = batch["condition"].to(device)
                 
                 base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
-                base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
+                # base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
 
                 noise = torch.randn_like(z).to(device)
                 scheduler.set_timesteps(num_inference_steps=config.timestep)
@@ -218,7 +218,7 @@ def main(config):
                                                                     clinical_cond=condition,
                                                                     mode='crossattn',
                                                                     save_intermediates=True,
-                                                                    intermediate_steps=100,
+                                                                    intermediate_steps=config.timestep//20,
                                                                     verbose=True,
                                                                     scheduler=scheduler)
 

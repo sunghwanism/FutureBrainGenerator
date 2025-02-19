@@ -86,6 +86,8 @@ def main(config):
     
     base_img_size = z[0].numel()
     latent_dim = z.shape[1]
+
+    B, C, H, W, D = z.shape
     
     unet = generate_unet(config, device, base_img_size, latent_dim, local_rank)
     scheduler = generate_scheduler(config)
@@ -126,9 +128,8 @@ def main(config):
             follow_img = batch['follow_img'].to(device)
             condition = batch["condition"].to(device)
             
-            base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
-            base_img_z = base_img_z * scale_factor
-            base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
+            base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
+            # base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
             
             optimizer_diff.zero_grad(set_to_none=True)
 
@@ -203,9 +204,8 @@ def main(config):
                 follow_img = batch['follow_img'].to(device)
                 condition = batch["condition"].to(device)
                 
-                base_img_z = EDmodel.encode_stage_2_inputs(base_img).flatten(1).unsqueeze(1)
-                base_img_z = base_img_z * scale_factor
-                base_img_z = base_img_z + (batch['Age_B'].to(device, dtype=torch.float32).view(-1, 1, 1))/1000
+                base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
+                # base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
 
                 noise = torch.randn_like(z).to(device)
                 scheduler.set_timesteps(num_inference_steps=config.timestep)

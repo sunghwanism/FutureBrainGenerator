@@ -16,7 +16,7 @@ from MONAI.generative.networks.nets import VQVAE
 from monai.utils import first
 from MONAI.generative.networks.schedulers import DDPMScheduler, DDIMScheduler
 
-from model.MedUNet import LongLDMmodel, LongBrainmodel
+from model.MedUNet import LongLDMmodel, LongBrainmodel, AdaBrainLDM
 from model.inferer import LongLDMInferer
 
 
@@ -149,7 +149,7 @@ def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
     elif config.train_model == 'AdaLDM':
         assert config.use_AdaIN, "AdaIN must be used for AdaLDM" and config.train_model == 'AdaLDM'
 
-        unet = LongBrainmodel(
+        unet = AdaBrainLDM(
             spatial_dims=3,
             in_channels=latent_dim,
             out_channels=latent_dim,
