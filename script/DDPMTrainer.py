@@ -18,7 +18,7 @@ from monai.utils import set_determinism, first, optional_import
 import wandb
 
 from script.utils import *
-from script.configure.LDMconfig import get_run_parser
+from script.configure.DDPMconfig import get_run_parser
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -127,23 +127,24 @@ def main(config):
             base_img = batch['base_img'].to(device)
             follow_img = batch['follow_img'].to(device)
             condition = batch["condition"].to(device)
-            
-            base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
+            with torch.no_grad():
+                base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
             # base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
             
             optimizer_diff.zero_grad(set_to_none=True)
 
-            noise = torch.randn_like(z).to(device)
+            noise = torch.randn_like(follow_img).to(device)
             timesteps = torch.randint(0,
                                       inferer.scheduler.num_train_timesteps, 
                                       (base_img.shape[0],), 
                                       device=base_img_z.device).long()
 
-            noise_pred = inferer(inputs=follow_img, autoencoder_model=EDmodel,
-                                 diffusion_model=unet, noise=noise, timesteps=timesteps,
+            noise_pred = inferer(inputs=follow_img,
+                                 diffusion_model=unet,
+                                 noise=noise, timesteps=timesteps,
                                  condition=base_img_z,
                                  clinical_cond=condition,
-                                 mode='crossattn', quantized=True)
+                                 mode='crossattn')
                 
             diff_loss = F.mse_loss(noise_pred.float(), noise.float())
             diff_loss.backward()
@@ -195,7 +196,6 @@ def main(config):
 
             unet.eval()
             EDmodel.eval()
-            val_loss = 0
 
             with torch.no_grad():
                 batch = first(val_loader)
@@ -203,15 +203,14 @@ def main(config):
                 base_img = batch['base_img'].to(device)
                 follow_img = batch['follow_img'].to(device)
                 condition = batch["condition"].to(device)
-                
-                base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
+                with torch.no_grad():
+                    base_img_z = EDmodel.encode_stage_2_inputs(base_img) * scale_factor #.flatten(1).unsqueeze(1)
                 # base_img_z = base_img_z.to(device) + (batch['Age_B'].to(device, dtype=torch.float32).view(B, 1, 1, 1, 1))/1000
 
-                noise = torch.randn_like(z).to(device)
+                noise = torch.randn_like(follow_img).to(device)
                 scheduler.set_timesteps(num_inference_steps=config.timestep)
 
                 synthetic_images, intermediate_img = inferer.sample(input_noise=noise, 
-                                                                    autoencoder_model=EDmodel,
                                                                     diffusion_model=unet,
                                                                     conditioning=base_img_z,
                                                                     clinical_cond=condition,
