@@ -16,8 +16,8 @@ from MONAI.generative.networks.nets import VQVAE
 from monai.utils import first
 from MONAI.generative.networks.schedulers import DDPMScheduler, DDIMScheduler
 
-from model.MedUNet import LongLDMmodel, LongBrainmodel, AdaBrainLDM
-from model.inferer import LongLDMInferer
+from model.MedUNet import LongLDMmodel, LongBrainmodel, AdaBrainLDM, DDPMBrainNet
+from model.inferer import LongLDMInferer, BrainDDPMInferer
 
 
 def init_wandb(config, key=None):
@@ -164,6 +164,38 @@ def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
             use_AdaIN=True,
         ).to(device)
 
+    elif config.train_model == 'DDPM':
+
+        unet = LongLDMmodel(spatial_dims=3, 
+                            in_channels=1,
+                            out_channels=1,
+                            num_res_blocks=config.diff_num_res_blocks,
+                            num_channels=config.diff_num_channels,
+                            attention_levels=config.diff_attention_levels,
+                            num_head_channels=config.diff_num_head_channels,
+                            with_conditioning=True,
+                            transformer_num_layers=config.transformer_num_layer,
+                            cross_attention_dim=cond_size,
+                            clinical_condition=config.condition,
+
+    )
+    
+    elif config.train_model == 'AdaDDPM':
+        unet = AdaBrainLDM(
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=1,
+            num_res_blocks=config.diff_num_res_blocks,
+            num_channels=config.diff_num_channels,
+            attention_levels=config.diff_attention_levels,
+            cross_attention_dim=cond_size,
+            with_conditioning=True,
+            clinical_condition=config.condition,
+            num_head_channels=config.diff_num_head_channels,
+            transformer_num_layers=config.transformer_num_layer,
+            use_AdaIN=True,
+        ).to(device)
+
 
     unet = torch.nn.parallel.DistributedDataParallel(unet, device_ids=[local_rank], 
                                                      output_device=local_rank,)
@@ -173,6 +205,9 @@ def generate_unet(config, device, cond_size, latent_dim, local_rank=None):
 def generate_Inferer(scheduler, scale_factor, config):
     if config.train_model == 'LDM' or config.train_model == 'AdaLDM':
         inferer = LongLDMInferer(scheduler, scale_factor=scale_factor,)
+
+    elif config.train_model == 'DDPM' or config.train_model == 'AdaDDPM':
+        inferer = BrainDDPMInferer(scheduler, scale_factor=scale_factor,)
     else:
         raise ValueError(f"Model {config.model} not implemented")
 
